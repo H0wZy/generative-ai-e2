@@ -77,16 +77,17 @@ FastAPI owns schema validation and transactional persistence. PostgreSQL is the 
   "category": "incident",
   "requester": "user@example.test",
   "attachments": [],
-  "correlation_id": "corr-001"
+  "external_correlation_id": "n8n-execution-001"
 }
 ```
 
-The endpoint returns `202 Accepted` with `workflow_execution_id` and `accepted` or `duplicate`. The idempotency key is unique for `source_system`, `source_ticket_id`, `event_type` and source event version. The final source-event version field is added before Freshservice is connected.
+The endpoint generates an `internal_correlation_id` for every accepted workflow and returns it with `workflow_execution_id` and `accepted` or `duplicate`. The optional `external_correlation_id` is stored for reconciliation with Freshservice or n8n, but is never used as an idempotency key, authorization input or primary identifier. The idempotency key is unique for `source_system`, `source_ticket_id`, `event_type` and source event version. The final source-event version field is added before Freshservice is connected.
 
 ## Data Model
 
 - `tickets`: normalized source ticket and safe metadata.
-- `workflow_executions`: lifecycle, correlation ID, retry count, schedule and last error.
+- `workflow_executions`: lifecycle, internally generated correlation ID, retry count, schedule and last error.
+- `external_references`: optional source-system correlation IDs retained for reconciliation and investigation.
 - `routing_decisions`: rule version, squad, confidence and reason.
 - `jira_issue_links`: one unique Jira issue key per ticket.
 - `outbox_events`: transactional work records consumed by the worker.
@@ -108,7 +109,8 @@ The adapter requires `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` and a confi
 
 - Reject malformed payloads and authenticate the future n8n caller.
 - Keep credentials only in runtime environment variables for local development and Secret Manager for deployment.
-- Log correlation ID, workflow ID, source ticket ID, operation, status, duration and sanitized error category.
+- Generate the internal correlation ID at the FastAPI boundary and preserve it across worker execution, retries, audit records and Jira calls.
+- Log internal correlation ID, optional external correlation ID, workflow ID, source ticket ID, operation, status, duration and sanitized error category.
 - Do not log ticket descriptions, requester PII, attachments or authentication headers by default.
 - Expose a health endpoint and metrics-ready counters for received, completed, retried, failed and duplicate requests.
 
