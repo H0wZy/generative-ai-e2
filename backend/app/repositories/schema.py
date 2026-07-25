@@ -1,0 +1,172 @@
+"""SQLAlchemy ORM table definitions."""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+def _uuid() -> uuid.UUID:
+    return uuid.uuid4()
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class TicketRow(Base):
+    __tablename__ = "tickets"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    source_system: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_ticket_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    event_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    priority: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
+    category: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    requester: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    workflow_executions: Mapped[list[WorkflowExecutionRow]] = relationship(back_populates="ticket")
+    jira_issue_link: Mapped[JiraIssueLinkRow | None] = relationship(back_populates="ticket", uselist=False)
+
+    __table_args__ = (
+        UniqueConstraint("source_system", "source_ticket_id", "event_type", "event_id", name="uq_ticket_event"),
+    )
+
+
+class WorkflowExecutionRow(Base):
+    __tablename__ = "workflow_executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="RESTRICT"), nullable=False
+    )
+    internal_correlation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, default=_uuid)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="pending")
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    squad_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    routing_rule_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    routing_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    needs_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    ticket: Mapped[TicketRow] = relationship(back_populates="workflow_executions")
+    external_references: Mapped[list[ExternalReferenceRow]] = relationship(back_populates="workflow_execution")
+    routing_decisions: Mapped[list[RoutingDecisionRow]] = relationship(back_populates="workflow_execution")
+    outbox_events: Mapped[list[OutboxEventRow]] = relationship(back_populates="workflow_execution")
+    audit_logs: Mapped[list[AuditLogRow]] = relationship(back_populates="workflow_execution")
+
+
+class ExternalReferenceRow(Base):
+    __tablename__ = "external_references"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    workflow_execution_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="CASCADE"), nullable=False
+    )
+    source_system: Mapped[str] = mapped_column(String(80), nullable=False)
+    external_correlation_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    workflow_execution: Mapped[WorkflowExecutionRow] = relationship(back_populates="external_references")
+
+    __table_args__ = (
+        Index("ix_external_refs_source_extid", "source_system", "external_correlation_id"),
+    )
+
+
+class RoutingDecisionRow(Base):
+    __tablename__ = "routing_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    workflow_execution_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="CASCADE"), nullable=False
+    )
+    rule_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    squad_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    needs_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    workflow_execution: Mapped[WorkflowExecutionRow] = relationship(back_populates="routing_decisions")
+
+
+class OutboxEventRow(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    workflow_execution_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    claimed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    workflow_execution: Mapped[WorkflowExecutionRow] = relationship(back_populates="outbox_events")
+
+
+class JiraIssueLinkRow(Base):
+    __tablename__ = "jira_issue_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    jira_issue_key: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    ticket: Mapped[TicketRow] = relationship(back_populates="jira_issue_link")
+
+
+class AuditLogRow(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    workflow_execution_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workflow_executions.id", ondelete="SET NULL"), nullable=True
+    )
+    internal_correlation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    details_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    workflow_execution: Mapped[WorkflowExecutionRow | None] = relationship(back_populates="audit_logs")

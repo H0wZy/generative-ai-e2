@@ -1,0 +1,13 @@
+{
+  "event_id": "evt-001",
+  "event_type": "ticket.created",
+  "occurred_at": "2026-07-25T12:00:00Z",
+  "source_ticket_id": "FS-100",
+  "subject": "Servico indisponivel",
+  "description": "Aplicacao nao responde desde as 10h. Impacto em todos os usuarios da plataforma.",
+  "priority": "high",
+  "category": "incident",
+  "requester": "user@example.test",
+  "attachments": [],
+  "external_correlation_id": "n8n-execution-001"
+}
