@@ -37,3 +37,5 @@ Thumbs.db
 # Secrets / data
 *.db
 data/
+rag/data/*.db
+.claude/settings.local.json
