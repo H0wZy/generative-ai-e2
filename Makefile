@@ -1,4 +1,4 @@
-.PHONY: help up down migrate migrate-test test test-unit ingest-demo worker-once clean
+.PHONY: help up down db-init-local migrate migrate-test test test-unit ingest-demo worker-once clean routing-eval rag-sync rag-eval serve
 
 BACKEND_DIR := backend
 DB_URL      ?= postgresql://genai_e2:genai_e2_dev@localhost:5432/genai_e2
@@ -23,6 +23,17 @@ up: ## Start PostgreSQL dev database (port 5432 via Docker)
 
 down: ## Stop all containers
 	docker compose down --remove-orphans
+
+db-init-local: ## Create role and databases in local PostgreSQL (requires PostgreSQL 16 running, see README)
+	@PSQL='psql -U postgres'; \
+	$$PSQL -tc 'SELECT 1' >/dev/null 2>&1 || PSQL='sudo -u postgres psql'; \
+	$$PSQL -tc "SELECT 1 FROM pg_roles WHERE rolname='genai_e2'" | grep -q 1 \
+	  || $$PSQL -c "CREATE ROLE genai_e2 WITH PASSWORD 'genai_e2_dev' LOGIN;"; \
+	$$PSQL -tc "SELECT 1 FROM pg_database WHERE datname='genai_e2'" | grep -q 1 \
+	  || $$PSQL -c "CREATE DATABASE genai_e2 OWNER genai_e2;"; \
+	$$PSQL -tc "SELECT 1 FROM pg_database WHERE datname='genai_e2_test'" | grep -q 1 \
+	  || $$PSQL -c "CREATE DATABASE genai_e2_test OWNER genai_e2;"
+	@echo "Local PostgreSQL initialized: genai_e2 role and databases ready."
 
 ## ─── Migrations ─────────────────────────────────────────────────────────────
 

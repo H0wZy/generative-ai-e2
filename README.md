@@ -6,6 +6,77 @@ Projeto do Bootcamp Gen AI E2 da TCS para demonstrar a aplicação de IA Generat
 
 Automatizar a criação de issues no Jira a partir de tickets do Freshservice, com roteamento para a squad correta, rastreabilidade e operação segura. Em paralelo, o projeto inclui um laboratório RAG local, exposto por MCP, para consulta à documentação do repositório.
 
+## Como rodar o backend
+
+Nenhuma linha de código muda entre os dois caminhos abaixo — a diferença é apenas quem sobe o PostgreSQL.
+
+### Pré-requisitos
+
+- Python 3.11+
+- PostgreSQL 16 (via Docker ou instalação local)
+- `make` e `curl`
+
+### Caminho 1: Com Docker (recomendado, padrão)
+
+```bash
+# Subir PostgreSQL container
+make up
+
+# Aplicar migrations
+make migrate
+make migrate-test
+
+# Rodar testes
+make test
+
+# Iniciar API
+make serve
+```
+
+### Caminho 2: PostgreSQL local (sem Docker)
+
+Quando Docker não está disponível, use PostgreSQL nativo instalado na máquina:
+
+1. **Ter PostgreSQL 16 rodando localmente.** Exemplo em systemd:
+   ```bash
+   sudo systemctl start postgresql
+   ```
+   (Ajuste para seu SO: `brew services start postgresql` em macOS, etc.)
+
+2. **Inicializar role e databases:**
+   ```bash
+   make db-init-local
+   ```
+   (O target tenta `psql -U postgres` direto; se falhar por autenticação peer — comum em Fedora/RHEL/Debian — cai para `sudo -u postgres psql`.)
+
+3. **Configurar environment:**
+   ```bash
+   cp backend/.env.example backend/.env
+   # Ajustar DATABASE_URL/TEST_DATABASE_URL se a senha local for diferente
+   ```
+
+4. **Aplicar migrations:**
+   ```bash
+   make migrate
+   make migrate-test
+   ```
+
+5. **Rodar testes e API:**
+   ```bash
+   make test
+   make serve
+   ```
+
+### Operações adicionais (ambos os caminhos)
+
+```bash
+make ingest-demo      # POST da fixture sintética
+make worker-once      # Processar um evento de saída
+make rag-sync         # Indexar docs/ em rag/data/knowledge.db
+make rag-eval         # Executar golden set do RAG
+make clean            # Limpar cache Python
+```
+
 ## Estado do Repositório
 
 O repositório está na fase de arquitetura e documentação. A árvore abaixo descreve a organização **alvo**, e não afirma que todos os módulos já estão implementados.
