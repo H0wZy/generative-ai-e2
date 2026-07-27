@@ -142,9 +142,8 @@ class JiraClient:
 
 @dataclass
 class FakeJiraClient:
-    """Deterministic fake — returns predictable issue keys or raises errors."""
+    """Deterministic fake — derives issue keys from project_key, or raises errors."""
 
-    next_key: str = "PLAT-123"
     _error: JiraClientError | None = field(default=None, init=False, repr=False)
 
     def raise_error(self, error: JiraClientError) -> None:
@@ -160,4 +159,4 @@ class FakeJiraClient:
             err = self._error
             self._error = None
             raise err
-        return self.next_key
+        return f"{project_key}-123"

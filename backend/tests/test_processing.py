@@ -159,3 +159,80 @@ def test_process_next_terminal_error_marks_failed(
 
     assert result is not None
     assert result.status == "failed"
+
+
+@pytest.mark.parametrize("http_status", [401, 503])
+def test_last_error_never_leaks_jira_response_body(
+    client: TestClient,
+    session_factory,
+    test_database_url: str,
+    http_status: int,
+) -> None:
+    """last_error must be built from HTTP status only — never response body,
+    exc text or the Jira base URL. Locks JiraClient._raise_for_status against
+    a future switch to str(exc) / response.text, which would leak Jira
+    tenant secrets straight into the dashboard (and demo recordings).
+    """
+    from datetime import datetime, timezone
+
+    import respx
+
+    from app.core.config import Settings
+    from app.domain.models import TicketIngestRequest
+    from app.integrations.jira import JiraClient
+    from app.services.ingestion import IngestionService
+    from app.services.processing import ProcessingService
+
+    jira_url = "https://acme.atlassian.net"
+    malicious_body = {
+        "errorMessages": ["Unauthorized"],
+        "token": "fake-secret-abc123",
+        "url": jira_url,
+        "email": "alguem@acme.com",
+    }
+
+    session = session_factory()
+    try:
+        IngestionService(session).ingest(
+            TicketIngestRequest(
+                event_id=f"evt-leak-{http_status}",
+                event_type="ticket.created",
+                occurred_at=datetime.now(timezone.utc),
+                source_ticket_id=f"FS-leak-{http_status}",
+                subject="Test last_error sanitization",
+                category="incident",
+            )
+        )
+    finally:
+        session.close()
+
+    settings = Settings(
+        database_url=test_database_url,  # type: ignore[arg-type]
+        jira_base_url=jira_url,  # type: ignore[arg-type]
+        jira_email="admin@acme.com",
+        jira_api_token="admin-token",  # type: ignore[arg-type]
+        jira_project_platform="PLAT",
+        jira_project_identity="IDEN",
+        jira_project_finance="FIN",
+    )
+    real_jira = JiraClient(settings)
+
+    with respx.mock:
+        respx.post(f"{jira_url}/rest/api/3/issue").respond(http_status, json=malicious_body)
+        session2 = session_factory()
+        try:
+            result = ProcessingService(session2, real_jira, settings).process_next()
+        finally:
+            session2.close()
+
+    assert result is not None
+    assert result.status in ("failed", "retry_scheduled")
+
+    listed = client.get("/api/v1/workflows").json()
+    last_error = listed["items"][0]["last_error"]
+
+    for marker in ("fake-secret-abc123", "atlassian.net", "alguem@acme.com"):
+        assert marker not in last_error
+
+    prefix = "retryable:" if result.status == "retry_scheduled" else "terminal:"
+    assert last_error == f"{prefix}HTTP {http_status}"

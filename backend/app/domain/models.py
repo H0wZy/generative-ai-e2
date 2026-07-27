@@ -51,6 +51,58 @@ class WorkflowResponse(BaseModel):
     jira_issue_key: str | None
 
 
+WorkflowStatus = Literal[
+    "pending", "processing", "retry_scheduled", "completed", "failed", "needs_human_review"
+]
+
+
+class WorkflowTicketSummary(BaseModel):
+    """Ticket fields safe to expose on the dashboard — no requester/PII."""
+
+    source_ticket_id: str
+    subject: str
+    category: str | None
+    priority: str
+
+
+class WorkflowListItem(BaseModel):
+    workflow_execution_id: UUID
+    internal_correlation_id: UUID
+    status: WorkflowStatus
+    attempt_count: int
+    squad_id: str | None
+    routing_confidence: float | None
+    routing_rule_version: str | None
+    needs_human_review: bool
+    last_error: str | None
+    jira_issue_key: str | None
+    ticket: WorkflowTicketSummary
+    updated_at: datetime
+
+
+class WorkflowListResponse(BaseModel):
+    items: list[WorkflowListItem]
+    total: int
+
+
+class MetricsResponse(BaseModel):
+    received: int
+    pending: int
+    completed: int
+    retry_scheduled: int
+    failed: int
+    needs_human_review: int
+    duplicates_avoided: int | None
+
+
+class ReprocessResponse(BaseModel):
+    workflow_execution_id: UUID
+    status: WorkflowStatus
+    jira_issue_key: str | None
+    reprocessed: bool
+    reason: Literal["already_linked", "not_eligible"] | None = None
+
+
 # ---------------------------------------------------------------------------
 # Pure domain value objects (dataclasses)
 # ---------------------------------------------------------------------------

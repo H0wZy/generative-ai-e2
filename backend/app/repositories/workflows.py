@@ -6,16 +6,21 @@ from __future__ import annotations
 
 import json
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.domain.models import (
     IngestResponse,
+    MetricsResponse,
     ProcessResult,
     TicketIngestRequest,
     TicketRecord,
+    WorkflowListItem,
+    WorkflowListResponse,
+    WorkflowTicketSummary,
 )
 from app.repositories.schema import (
     AuditLogRow,
@@ -200,6 +205,7 @@ class WorkflowRepository:
             )
 
         workflow.status = "completed"
+        workflow.last_error = None
         workflow.updated_at = datetime.now(timezone.utc)
 
         self._session.add(
@@ -325,3 +331,127 @@ class WorkflowRepository:
             priority=ticket.priority,
             category=ticket.category,
         )
+
+    # ------------------------------------------------------------------
+    # Dashboard — list, metrics, reprocess
+    # ------------------------------------------------------------------
+
+    def list_workflows(self, status: str | None, limit: int) -> WorkflowListResponse:
+        filters = [WorkflowExecutionRow.status == status] if status is not None else []
+
+        total = self._session.execute(
+            select(func.count()).select_from(WorkflowExecutionRow).where(*filters)
+        ).scalar_one()
+
+        stmt = (
+            select(WorkflowExecutionRow, TicketRow, JiraIssueLinkRow)
+            .join(TicketRow, TicketRow.id == WorkflowExecutionRow.ticket_id)
+            .outerjoin(JiraIssueLinkRow, JiraIssueLinkRow.ticket_id == TicketRow.id)
+            .where(*filters)
+            .order_by(WorkflowExecutionRow.updated_at.desc())
+            .limit(limit)
+        )
+        rows = self._session.execute(stmt).all()
+
+        items = [
+            WorkflowListItem(
+                workflow_execution_id=workflow.id,
+                internal_correlation_id=workflow.internal_correlation_id,
+                status=workflow.status,  # type: ignore[arg-type]
+                attempt_count=workflow.attempt_count,
+                squad_id=workflow.squad_id,
+                routing_confidence=workflow.routing_confidence,
+                routing_rule_version=workflow.routing_rule_version,
+                needs_human_review=workflow.needs_human_review,
+                last_error=workflow.last_error,
+                jira_issue_key=link.jira_issue_key if link else None,
+                ticket=WorkflowTicketSummary(
+                    source_ticket_id=ticket.source_ticket_id,
+                    subject=ticket.subject,
+                    category=ticket.category,
+                    priority=ticket.priority,
+                ),
+                updated_at=workflow.updated_at,
+            )
+            for workflow, ticket, link in rows
+        ]
+        return WorkflowListResponse(items=items, total=total)
+
+    def get_metrics(self) -> MetricsResponse:
+        counts_by_status = dict(
+            self._session.execute(
+                select(WorkflowExecutionRow.status, func.count()).group_by(WorkflowExecutionRow.status)
+            ).all()
+        )
+        received = self._session.execute(select(func.count()).select_from(WorkflowExecutionRow)).scalar_one()
+        return MetricsResponse(
+            received=received,
+            pending=counts_by_status.get("pending", 0),
+            completed=counts_by_status.get("completed", 0),
+            retry_scheduled=counts_by_status.get("retry_scheduled", 0),
+            failed=counts_by_status.get("failed", 0),
+            needs_human_review=counts_by_status.get("needs_human_review", 0),
+            # ponytail: not derivable from current schema without a dedicated
+            # counter/table (duplicate ingests are rejected before any row is
+            # written). Add a counter column if this becomes a real need.
+            duplicates_avoided=None,
+        )
+
+    def reprocess_workflow(self, workflow_id: uuid.UUID) -> ReprocessOutcome:
+        """Reschedule a failed/needs_human_review workflow for reprocessing.
+
+        Idempotent: if the ticket already has a Jira link, no new outbox
+        event is created and the existing link is returned instead.
+        """
+        workflow = self._session.get(WorkflowExecutionRow, workflow_id)
+        if workflow is None:
+            return ReprocessOutcome(found=False, conflict=False, status=None, jira_issue_key=None, reason=None)
+
+        existing_link = self._session.execute(
+            select(JiraIssueLinkRow).where(JiraIssueLinkRow.ticket_id == workflow.ticket_id)
+        ).scalar_one_or_none()
+        if existing_link is not None:
+            return ReprocessOutcome(
+                found=True,
+                conflict=True,
+                status=workflow.status,
+                jira_issue_key=existing_link.jira_issue_key,
+                reason="already_linked",
+            )
+
+        if workflow.status not in ("failed", "needs_human_review"):
+            return ReprocessOutcome(
+                found=True, conflict=True, status=workflow.status, jira_issue_key=None, reason="not_eligible"
+            )
+
+        workflow.status = "pending"
+        workflow.updated_at = datetime.now(timezone.utc)
+        self._session.add(
+            OutboxEventRow(
+                id=uuid.uuid4(),
+                workflow_execution_id=workflow.id,
+                event_type="ticket.process",
+                payload_json="{}",
+                claimed=False,
+            )
+        )
+        self._session.add(
+            AuditLogRow(
+                id=uuid.uuid4(),
+                workflow_execution_id=workflow.id,
+                internal_correlation_id=workflow.internal_correlation_id,
+                event_type="workflow.reprocess_requested",
+                details_json="{}",
+            )
+        )
+        self._session.commit()
+        return ReprocessOutcome(found=True, conflict=False, status="pending", jira_issue_key=None, reason=None)
+
+
+@dataclass(frozen=True)
+class ReprocessOutcome:
+    found: bool
+    conflict: bool
+    status: str | None
+    jira_issue_key: str | None
+    reason: str | None

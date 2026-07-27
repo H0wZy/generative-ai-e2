@@ -81,10 +81,14 @@ def test_jira_client_raises_terminal_on_4xx(jira_client, sample_ticket) -> None:
     assert exc_info.value.retryable is False
 
 
-def test_fake_jira_returns_configured_key(sample_ticket) -> None:
-    fake = FakeJiraClient(next_key="TEST-999")
-    key = fake.create_issue(sample_ticket, "TEST", TRACE_ID)
-    assert key == "TEST-999"
+@pytest.mark.parametrize("project_key", ["TEST", "FIN", "PLAT"])
+def test_fake_jira_derives_key_from_project_key(sample_ticket, project_key: str) -> None:
+    """The fake must reflect the routed squad's project — a fixed key would
+    make a finance ticket show up with a platform-looking issue key on the
+    dashboard, contradicting the routing it's supposed to demonstrate."""
+    fake = FakeJiraClient()
+    key = fake.create_issue(sample_ticket, project_key, TRACE_ID)
+    assert key == f"{project_key}-123"
 
 
 def test_fake_jira_raises_error_once_then_succeeds(sample_ticket) -> None:

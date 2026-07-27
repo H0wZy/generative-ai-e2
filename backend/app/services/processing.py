@@ -7,8 +7,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.domain.models import ProcessResult
+from app.domain.models import ProcessResult, RoutingDecision
 from app.integrations.jira import JiraClientError, JiraClientProtocol
+from app.integrations.llm import LLMClientError, LLMClientProtocol, OllamaClient, resolve_squad
 from app.repositories.workflows import WorkflowRepository
 from app.services.routing import route_ticket
 
@@ -37,11 +38,13 @@ class ProcessingService:
         session: Session,
         jira_client: JiraClientProtocol,
         settings: Settings,
+        llm_client: LLMClientProtocol | None = None,
     ) -> None:
         self._session = session
         self._repo = WorkflowRepository(session)
         self._jira = jira_client
         self._settings = settings
+        self._llm_client = llm_client
 
     def process_next(self) -> ProcessResult | None:
         """Claim and process one pending outbox event.
@@ -58,6 +61,8 @@ class ProcessingService:
         # Deterministic routing
         # ------------------------------------------------------------------
         decision = route_ticket(ticket.category)
+        if decision.squad_id is None:
+            decision = self._augment_with_llm(decision, ticket)
         self._repo.record_routing_decision(
             workflow=workflow,
             squad_id=decision.squad_id,
@@ -148,4 +153,27 @@ class ProcessingService:
             status="completed",
             attempt_count=workflow.attempt_count,
             jira_issue_key=jira_key,
+        )
+
+    # ------------------------------------------------------------------
+    # LLM fallback — only called when deterministic routing found no squad
+    # ------------------------------------------------------------------
+
+    def _augment_with_llm(self, decision: RoutingDecision, ticket) -> RoutingDecision:
+        if not self._settings.llm_enabled:
+            return decision
+
+        client = self._llm_client or OllamaClient(self._settings)
+        try:
+            result = client.classify_squad(ticket.subject, ticket.description)
+        except LLMClientError:
+            # Ollama down, timeout, invalid JSON, bad enum — degrade to human review.
+            return decision
+
+        squad_id, needs_human_review = resolve_squad(result, self._settings.llm_confidence_threshold)
+        return RoutingDecision(
+            squad_id=squad_id,
+            rule_version=f"llm/{self._settings.llm_model}@squad_classifier_v1",
+            confidence=result.confidence,
+            needs_human_review=needs_human_review,
         )

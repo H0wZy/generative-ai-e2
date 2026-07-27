@@ -2,23 +2,62 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 from app.api.routes import create_router
 from app.core.config import Settings, get_settings
 from app.core.database import make_session_factory
+
+_SCALAR_HTML = """\
+<!doctype html>
+<html>
+  <head>
+    <title>GenAI E2 — API Docs</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script
+      id="api-reference"
+      data-url="/openapi.json"
+      data-configuration='{
+        "theme": "purple",
+        "layout": "modern",
+        "defaultHttpClient": {"targetKey": "python", "clientKey": "requests"}
+      }'
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>
+"""
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved = settings or get_settings()
     session_factory = make_session_factory(str(resolved.database_url))
 
-    app = FastAPI(title="GenAI E2 Freshservice to Jira", version="0.1.0")
+    # Disable built-in Swagger UI and ReDoc; we serve Scalar instead.
+    app = FastAPI(
+        title="GenAI E2 — Freshservice to Jira",
+        version="0.1.0",
+        description=(
+            "Recebe tickets do Freshservice, roteia para a squad correta e cria "
+            "issues no Jira com rastreabilidade completa via PostgreSQL."
+        ),
+        docs_url=None,
+        redoc_url=None,
+    )
     app.state.settings = resolved
     app.state.session_factory = session_factory
 
-    @app.get("/health", tags=["ops"])
+    @app.get("/health", tags=["ops"], summary="Health check")
     def health() -> dict[str, str]:
+        """Retorna `{\"status\": \"ok\"}` quando a API está operacional."""
         return {"status": "ok"}
+
+    @app.get("/docs", include_in_schema=False)
+    def scalar_docs() -> HTMLResponse:
+        return HTMLResponse(_SCALAR_HTML)
 
     app.include_router(create_router(resolved, session_factory))
 
@@ -26,19 +65,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _get_app() -> FastAPI:
-    """Lazy app instance for `uvicorn app.main:app`.
-
-    Created at first import when DATABASE_URL is available in the environment.
-    Tests call ``create_app(settings)`` directly and never hit this.
-    """
     return create_app()
 
 
-# Module-level instance for `uvicorn app.main:app`
-# Only initialised when running as a server (env var DATABASE_URL must be set).
 try:
     app = _get_app()
 except Exception:  # noqa: BLE001
-    # In test environments the env var may not be set at import time.
-    # Tests import create_app directly, so this is acceptable.
     app = None  # type: ignore[assignment]

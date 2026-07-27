@@ -17,12 +17,23 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import Settings
 from app.core.database import make_engine
-from app.domain.models import IngestResponse, TicketIngestRequest
+from app.domain.models import (
+    IngestResponse,
+    MetricsResponse,
+    ReprocessResponse,
+    TicketIngestRequest,
+    WorkflowListResponse,
+    WorkflowStatus,
+)
 from app.integrations.jira import FakeJiraClient
 from app.main import create_app
 from app.repositories.schema import Base
+from app.repositories.workflows import WorkflowRepository
 from app.services.ingestion import IngestionService
 from app.services.processing import ProcessingService
+from fastapi import HTTPException, Query
+from fastapi.responses import JSONResponse
+from uuid import UUID
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +123,7 @@ def test_settings(test_database_url: str) -> Settings:
 
 @pytest.fixture()
 def fake_jira() -> FakeJiraClient:
-    return FakeJiraClient(next_key="PLAT-123")
+    return FakeJiraClient()
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +166,34 @@ def client(test_settings: Settings, session_factory: sessionmaker[Session], fake
             "attempt_count": result.attempt_count,
             "jira_issue_key": result.jira_issue_key,
         }
+
+    @router.get("/workflows", response_model=WorkflowListResponse)
+    def _list_workflows(
+        status_filter: WorkflowStatus | None = Query(default=None, alias="status"),
+        limit: int = Query(default=50, ge=1, le=200),
+        session: Session = Depends(_get_session),
+    ):
+        return WorkflowRepository(session).list_workflows(status=status_filter, limit=limit)
+
+    @router.get("/metrics", response_model=MetricsResponse)
+    def _metrics(session: Session = Depends(_get_session)):
+        return WorkflowRepository(session).get_metrics()
+
+    @router.post("/workflows/{workflow_execution_id}/reprocess", response_model=ReprocessResponse)
+    def _reprocess(workflow_execution_id: UUID, session: Session = Depends(_get_session)):
+        outcome = WorkflowRepository(session).reprocess_workflow(workflow_execution_id)
+        if not outcome.found:
+            raise HTTPException(status_code=404, detail="workflow not found")
+        response = ReprocessResponse(
+            workflow_execution_id=workflow_execution_id,
+            status=outcome.status,  # type: ignore[arg-type]
+            jira_issue_key=outcome.jira_issue_key,
+            reprocessed=not outcome.conflict,
+            reason=outcome.reason,  # type: ignore[arg-type]
+        )
+        if outcome.conflict:
+            return JSONResponse(status_code=409, content=response.model_dump(mode="json"))
+        return response
 
     app.include_router(router)
     return TestClient(app)
