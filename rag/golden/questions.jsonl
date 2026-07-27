@@ -1,0 +1,12 @@
+{"question": "Qual é a chave de idempotência usada para evitar issues Jira duplicadas?", "expected_source": "docs/architecture/operational-contract.md"}
+{"question": "O que acontece com um evento de outbox quando as tentativas de retry se esgotam?", "expected_source": "docs/handoffs/freshservice-jira.md"}
+{"question": "Por que o RAG usa SQLite localmente enquanto a automação Freshservice-Jira usa PostgreSQL?", "expected_source": "docs/architecture/README.md"}
+{"question": "Qual a diferença entre internal_correlation_id e external_correlation_id?", "expected_source": "docs/superpowers/specs/2026-07-25-freshservice-jira-mvp-design.md"}
+{"question": "Como o worker decide se um erro deve sofrer retry com backoff exponencial?", "expected_source": "docs/architecture/operational-contract.md"}
+{"question": "O servidor MCP deste projeto expõe alguma ferramenta de escrita ou execução de SQL?", "expected_source": "docs/handoffs/rag-mcp.md"}
+{"question": "Que decisão foi tomada sobre indexar PDF e imagens no MVP do RAG?", "expected_source": "docs/handoffs/rag-mcp.md"}
+{"question": "Qual estratégia de chunking o RAG usa para dividir arquivos Markdown?", "expected_source": "docs/handoffs/rag-mcp.md"}
+{"question": "Quais campos mínimos todo evento operacional precisa registrar para observabilidade?", "expected_source": "docs/architecture/README.md"}
+{"question": "Quando a classificação de squad usa LLM em vez de regras determinísticas?", "expected_source": "docs/handoffs/freshservice-jira.md"}
+{"question": "Quais tabelas o banco knowledge.db do RAG local possui e para que servem?", "expected_source": "docs/handoffs/rag-mcp.md"}
+{"question": "Por que n8n não deve ser tratado como um container stateless comum?", "expected_source": "docs/architecture/README.md"}

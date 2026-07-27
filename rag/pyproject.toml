@@ -1,0 +1,25 @@
+[project]
+name = "genai-e2-rag"
+version = "0.1.0"
+description = "RAG local com SQLite + sqlite-vec para o Bootcamp Gen AI E2"
+requires-python = ">=3.12"
+dependencies = [
+  "sqlite-vec>=0.1.6",
+  "sentence-transformers>=3.0,<4.0",
+  "fastmcp>=2.0,<3.0",
+  "pytest>=8.0,<10.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0,<10.0",
+  "pytest-asyncio>=0.24,<1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
