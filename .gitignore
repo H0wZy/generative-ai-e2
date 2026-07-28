@@ -39,3 +39,7 @@ Thumbs.db
 data/
 rag/data/*.db
 .claude/settings.local.json
+
+# Power BI exports — real corporate data, never committed even anonymized
+examples/*.xlsx
+examples/*.csv

@@ -70,6 +70,12 @@ ingest-demo: ## POST the synthetic fixture to the local API
 worker-once: ## Claim and process one outbox event
 	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m app.worker --once
 
+poll-once: ## Poll Freshservice once for tickets updated since the last sync
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m app.worker --poll-once
+
+analytics-load: ## Load the Power BI exports from examples/ into the analytics schema
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m scripts.analytics_load ../examples
+
 ## ─── RAG ─────────────────────────────────────────────────────────────────────
 
 rag-sync: ## Incrementally index docs/**/*.md into rag/data/knowledge.db
