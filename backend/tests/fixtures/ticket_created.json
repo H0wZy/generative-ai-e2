@@ -7,6 +7,7 @@
   "description": "Aplicacao nao responde desde as 10h. Impacto em todos os usuarios da plataforma.",
   "priority": "high",
   "category": "incident",
+  "squad": "Squad4",
   "requester": "user@example.test",
   "attachments": [],
   "external_correlation_id": "n8n-execution-001"

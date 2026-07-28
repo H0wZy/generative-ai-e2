@@ -29,6 +29,8 @@ class TicketIngestRequest(BaseModel):
     description: Annotated[str, Field(max_length=20_000)] = ""
     priority: Literal["low", "medium", "high", "urgent"] = "medium"
     category: str | None = Field(default=None, max_length=80)
+    # Squad as the source system reported it. Drives deterministic routing.
+    squad: str | None = Field(default=None, max_length=40)
     requester: str | None = Field(default=None, max_length=255)
     attachments: list[Attachment] = Field(default_factory=list)
     external_correlation_id: str | None = Field(default=None, max_length=128)
@@ -76,6 +78,7 @@ class WorkflowListItem(BaseModel):
     needs_human_review: bool
     last_error: str | None
     jira_issue_key: str | None
+    link_origin: Literal["deterministic", "best_effort"] | None = None
     ticket: WorkflowTicketSummary
     updated_at: datetime
 
@@ -116,6 +119,7 @@ class TicketRecord:
     description: str
     priority: str
     category: str | None
+    squad: str | None = None
 
 
 @dataclass(frozen=True)

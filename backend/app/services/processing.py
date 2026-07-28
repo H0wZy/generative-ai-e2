@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.domain.models import ProcessResult, RoutingDecision
 from app.integrations.jira import JiraClientError, JiraClientProtocol
-from app.integrations.llm import LLMClientError, LLMClientProtocol, OllamaClient, resolve_squad
+from app.integrations.llm import (
+    PROMPT_VERSION,
+    LLMClientError,
+    LLMClientProtocol,
+    OllamaClient,
+    resolve_squad,
+)
 from app.repositories.workflows import WorkflowRepository
 from app.services.routing import route_ticket
 
@@ -23,13 +29,17 @@ def _next_attempt_at(attempt_count: int) -> datetime:
     return datetime.now(timezone.utc) + timedelta(seconds=delay)
 
 
-def _squad_project_key(squad_id: str, settings: Settings) -> str | None:
-    mapping = {
-        "identity": settings.jira_project_identity,
-        "finance": settings.jira_project_finance,
-        "platform": settings.jira_project_platform,
-    }
-    return mapping.get(squad_id)
+def _squad_destination(squad_id: str, settings: Settings) -> str | None:
+    """Resolve the Jira project for a squad.
+
+    Today every squad lands in the same project and is told apart by the
+    ``squad-<id>`` label — a sandbox needs one project, not thirteen. The
+    function stays as the extension point for the day the destination varies
+    per squad, and keeps "no destination configured" an explicit failure.
+    """
+    if not squad_id:
+        return None
+    return settings.jira_project_key
 
 
 class ProcessingService:
@@ -60,7 +70,7 @@ class ProcessingService:
         # ------------------------------------------------------------------
         # Deterministic routing
         # ------------------------------------------------------------------
-        decision = route_ticket(ticket.category)
+        decision = route_ticket(ticket.squad)
         if decision.squad_id is None:
             decision = self._augment_with_llm(decision, ticket)
         self._repo.record_routing_decision(
@@ -73,9 +83,11 @@ class ProcessingService:
         )
 
         if decision.needs_human_review:
+            # Reason names the field, never its value — the squad string comes
+            # from an external system and does not belong in a stored message.
             self._repo.mark_needs_human_review(
                 workflow=workflow,
-                reason=f"no routing rule matched category: {ticket.category!r}",
+                reason="no routing rule matched the ticket squad",
             )
             self._session.commit()
             return ProcessResult(
@@ -88,12 +100,12 @@ class ProcessingService:
         # ------------------------------------------------------------------
         # Jira call
         # ------------------------------------------------------------------
-        project_key = _squad_project_key(decision.squad_id or "", self._settings)
+        project_key = _squad_destination(decision.squad_id or "", self._settings)
         if not project_key:
             # Treat missing project config as a terminal failure
             self._repo.mark_failed(
                 workflow=workflow,
-                error_category=f"no_project_key_for_squad:{decision.squad_id}",
+                error_category=f"no_destination_for_squad:{decision.squad_id}",
             )
             self._session.commit()
             return ProcessResult(
@@ -110,6 +122,7 @@ class ProcessingService:
                 ticket=ticket_record,
                 project_key=project_key,
                 internal_correlation_id=workflow.internal_correlation_id,
+                squad_id=decision.squad_id or "",
             )
         except JiraClientError as exc:
             if exc.retryable and workflow.attempt_count < MAX_ATTEMPTS:
@@ -173,7 +186,7 @@ class ProcessingService:
         squad_id, needs_human_review = resolve_squad(result, self._settings.llm_confidence_threshold)
         return RoutingDecision(
             squad_id=squad_id,
-            rule_version=f"llm/{self._settings.llm_model}@squad_classifier_v1",
+            rule_version=f"llm/{self._settings.llm_model}@{PROMPT_VERSION}",
             confidence=result.confidence,
             needs_human_review=needs_human_review,
         )

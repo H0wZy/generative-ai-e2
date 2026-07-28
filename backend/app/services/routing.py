@@ -1,25 +1,25 @@
-"""Deterministic squad routing — no I/O, no database."""
+"""Deterministic squad routing — no I/O, no database.
+
+The squad is a field the Freshservice ticket already carries, so routing reads
+it instead of guessing from the category. A value outside the closed enum is
+the same case as a missing one: deterministic routing cannot decide, and the
+item goes to the LLM fallback or to human review.
+"""
 from __future__ import annotations
 
 from app.domain.models import RoutingDecision
+from app.domain.squads import normalize_squad
 
-RULE_VERSION = "routing-rules/v1"
-
-CATEGORY_TO_SQUAD: dict[str, str] = {
-    "access": "identity",
-    "billing": "finance",
-    "incident": "platform",
-    "integration": "platform",
-}
+RULE_VERSION = "routing-rules/v2"
 
 
-def route_ticket(category: str | None) -> RoutingDecision:
-    """Return a RoutingDecision for the given category string.
+def route_ticket(squad: str | None) -> RoutingDecision:
+    """Return a RoutingDecision for the squad reported by the source ticket.
 
-    Falls back to ``needs_human_review=True`` for unknown / missing categories.
+    Falls back to ``needs_human_review=True`` when the squad is missing or is
+    not one of the known squads.
     """
-    normalized = (category or "").strip().lower()
-    squad_id = CATEGORY_TO_SQUAD.get(normalized)
+    squad_id = normalize_squad(squad)
     if squad_id:
         return RoutingDecision(
             squad_id=squad_id,

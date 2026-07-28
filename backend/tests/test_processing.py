@@ -15,26 +15,32 @@ from tests.conftest import synthetic_ticket
 
 
 @pytest.mark.parametrize(
-    ("category", "expected_squad"),
+    ("squad", "expected_squad"),
     [
-        ("access", "identity"),
-        ("billing", "finance"),
-        ("incident", "platform"),
-        ("integration", "platform"),
-        ("ACCESS", "identity"),   # case insensitive
-        ("  billing  ", "finance"),  # whitespace trimmed
+        ("Squad4", "Squad4"),
+        ("Datastage", "Datastage"),
+        ("WordPress", "WordPress"),
+        ("SQUAD4", "Squad4"),        # case insensitive
+        ("  squad 4  ", "Squad4"),   # whitespace and separator tolerant
+        ("wordpress", "WordPress"),
     ],
 )
-def test_known_categories_route_deterministically(category: str, expected_squad: str) -> None:
-    decision = route_ticket(category)
+def test_known_squads_route_deterministically(squad: str, expected_squad: str) -> None:
+    decision = route_ticket(squad)
     assert decision.squad_id == expected_squad
     assert decision.needs_human_review is False
     assert decision.confidence == 1.0
+    assert decision.rule_version == "routing-rules/v2"
 
 
-@pytest.mark.parametrize("category", [None, "", "unknown", "hardware", "xyz"])
-def test_unknown_category_requires_human_review(category) -> None:
-    decision = route_ticket(category)
+@pytest.mark.parametrize("squad", [None, "", "unknown", "Squad3", "admin", "xyz"])
+def test_unknown_squad_requires_human_review(squad) -> None:
+    """Missing squad and squad outside the closed enum are the same case.
+
+    Squad3 is the interesting one: the old best-effort link rule invented it
+    from an issue-key prefix, and it does not exist in Freshservice.
+    """
+    decision = route_ticket(squad)
     assert decision.needs_human_review is True
     assert decision.squad_id is None
     assert decision.confidence == 0.0
@@ -45,18 +51,43 @@ def test_unknown_category_requires_human_review(category) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_process_next_creates_jira_link_for_incident(client: TestClient) -> None:
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(category="incident"))
+def test_process_next_creates_jira_link_for_known_squad(client: TestClient) -> None:
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
 
     processed = client.post("/api/v1/workflows/process-next")
     assert processed.status_code == 200
     body = processed.json()
     assert body["status"] == "completed"
-    assert body["jira_issue_key"] == "PLAT-123"
+    assert body["jira_issue_key"] == "SQD-123"
     assert body["attempt_count"] == 1
 
 
-def test_process_next_marks_needs_human_review_for_unknown_category(
+def test_every_squad_lands_in_the_single_configured_project(
+    client: TestClient, fake_jira: FakeJiraClient
+) -> None:
+    """Two different squads, same project — told apart by the label."""
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/workflows/process-next")
+    assert "squad-Squad4" in fake_jira.last_labels
+
+    client.post(
+        "/api/v1/tickets/ingest",
+        json=synthetic_ticket(event_id="evt-002", source_ticket_id="FS-101", squad="RPA"),
+    )
+    client.post("/api/v1/workflows/process-next")
+    assert "squad-RPA" in fake_jira.last_labels
+    assert "freshservice-FS-101" in fake_jira.last_labels
+
+
+def test_completed_link_records_deterministic_origin(client: TestClient) -> None:
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/workflows/process-next")
+
+    item = client.get("/api/v1/workflows").json()["items"][0]
+    assert item["link_origin"] == "deterministic"
+
+
+def test_process_next_marks_needs_human_review_for_unknown_squad(
     client: TestClient,
 ) -> None:
     client.post(
@@ -64,7 +95,7 @@ def test_process_next_marks_needs_human_review_for_unknown_category(
         json=synthetic_ticket(
             event_id="evt-review",
             source_ticket_id="FS-200",
-            category="hardware",
+            squad=None,
         ),
     )
     processed = client.post("/api/v1/workflows/process-next")
@@ -105,6 +136,7 @@ def test_process_next_retryable_error_schedules_retry(
                 source_ticket_id="FS-999",
                 subject="Test retry",
                 category="incident",
+                squad="Squad4",
             )
         )
     finally:
@@ -144,6 +176,7 @@ def test_process_next_terminal_error_marks_failed(
                 source_ticket_id="FS-888",
                 subject="Test terminal failure",
                 category="incident",
+                squad="Squad4",
             )
         )
     finally:
@@ -201,6 +234,7 @@ def test_last_error_never_leaks_jira_response_body(
                 source_ticket_id=f"FS-leak-{http_status}",
                 subject="Test last_error sanitization",
                 category="incident",
+                squad="Squad4",
             )
         )
     finally:
@@ -211,9 +245,7 @@ def test_last_error_never_leaks_jira_response_body(
         jira_base_url=jira_url,  # type: ignore[arg-type]
         jira_email="admin@acme.com",
         jira_api_token="admin-token",  # type: ignore[arg-type]
-        jira_project_platform="PLAT",
-        jira_project_identity="IDEN",
-        jira_project_finance="FIN",
+        jira_project_key="SQD",
     )
     real_jira = JiraClient(settings)
 

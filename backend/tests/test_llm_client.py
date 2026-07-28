@@ -32,10 +32,10 @@ def ollama_client(llm_settings) -> OllamaClient:
 def test_ollama_client_parses_valid_classification(ollama_client) -> None:
     respx.post(f"{OLLAMA_URL}/api/generate").respond(
         200,
-        json={"response": '{"squad": "identity", "confidence": 0.9, "reason": "acesso"}'},
+        json={"response": '{"squad": "Squad1", "confidence": 0.9, "reason": "acesso"}'},
     )
     result = ollama_client.classify_squad("Reset senha", "Usuario nao consegue logar")
-    assert result == SquadClassification(squad="identity", confidence=0.9, reason="acesso")
+    assert result == SquadClassification(squad="Squad1", confidence=0.9, reason="acesso")
 
 
 @respx.mock
@@ -59,7 +59,7 @@ def test_ollama_client_raises_on_squad_outside_enum(ollama_client) -> None:
 def test_ollama_client_raises_on_missing_field(ollama_client) -> None:
     respx.post(f"{OLLAMA_URL}/api/generate").respond(
         200,
-        json={"response": '{"squad": "identity"}'},
+        json={"response": '{"squad": "Squad1"}'},
     )
     with pytest.raises(LLMClientError):
         ollama_client.classify_squad("Assunto", "Descricao")
@@ -104,7 +104,7 @@ def test_ollama_client_error_never_leaks_ticket_content(ollama_client) -> None:
 
 
 def test_fake_llm_client_returns_configured_response() -> None:
-    expected = SquadClassification(squad="finance", confidence=0.95, reason="fatura")
+    expected = SquadClassification(squad="RPA", confidence=0.95, reason="fatura")
     fake = FakeLLMClient(response=expected)
     assert fake.classify_squad("s", "d") == expected
     assert fake.calls == [("s", "d")]

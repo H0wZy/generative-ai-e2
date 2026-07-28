@@ -42,8 +42,9 @@ class JiraClientProtocol(Protocol):
         ticket: TicketRecord,
         project_key: str,
         internal_correlation_id: UUID,
+        squad_id: str,
     ) -> str:
-        """Return the Jira issue key (e.g. 'PLAT-123')."""
+        """Return the Jira issue key (e.g. 'SQD-123')."""
         ...
 
 
@@ -101,6 +102,7 @@ class JiraClient:
         ticket: TicketRecord,
         project_key: str,
         internal_correlation_id: UUID,
+        squad_id: str,
     ) -> str:
         payload = {
             "fields": {
@@ -108,9 +110,12 @@ class JiraClient:
                 "summary": ticket.subject,
                 "description": to_atlassian_document(ticket.description),
                 "issuetype": {"name": "Task"},
+                # freshservice-<id> is the structured link: the ticket number no
+                # longer depends on someone typing it into the summary.
                 "labels": [
                     f"freshservice-{ticket.source_ticket_id}",
                     f"trace-{internal_correlation_id}",
+                    f"squad-{squad_id}",
                 ],
             }
         }
@@ -142,9 +147,17 @@ class JiraClient:
 
 @dataclass
 class FakeJiraClient:
-    """Deterministic fake — derives issue keys from project_key, or raises errors."""
+    """Deterministic fake — derives issue keys from project_key, or raises errors.
+
+    The counter matters: every squad now lands in the same project, so a fake
+    that always returned ``<PROJECT>-123`` would hand out a duplicate key —
+    something real Jira never does, and which the unique constraint on
+    ``jira_issue_links.jira_issue_key`` rightly rejects.
+    """
 
     _error: JiraClientError | None = field(default=None, init=False, repr=False)
+    _next_number: int = field(default=123, init=False, repr=False)
+    last_labels: list[str] = field(default_factory=list, init=False)
 
     def raise_error(self, error: JiraClientError) -> None:
         self._error = error
@@ -154,9 +167,17 @@ class FakeJiraClient:
         ticket: TicketRecord,
         project_key: str,
         internal_correlation_id: UUID,
+        squad_id: str,
     ) -> str:
         if self._error is not None:
             err = self._error
             self._error = None
             raise err
-        return f"{project_key}-123"
+        self.last_labels = [
+            f"freshservice-{ticket.source_ticket_id}",
+            f"trace-{internal_correlation_id}",
+            f"squad-{squad_id}",
+        ]
+        key = f"{project_key}-{self._next_number}"
+        self._next_number += 1
+        return key

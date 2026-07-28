@@ -21,9 +21,7 @@ from app.services.processing import ProcessingService
 def _llm_settings(test_database_url: str, **overrides) -> Settings:
     fields = dict(
         database_url=test_database_url,
-        jira_project_platform="PLAT",
-        jira_project_identity="IDEN",
-        jira_project_finance="FIN",
+        jira_project_key="SQD",
         llm_enabled=True,
         llm_model="qwen3:8b",
         llm_confidence_threshold=0.7,
@@ -32,7 +30,7 @@ def _llm_settings(test_database_url: str, **overrides) -> Settings:
     return Settings(**fields)  # type: ignore[arg-type]
 
 
-def _ingest(session_factory, *, category: str | None, source_ticket_id: str, event_id: str) -> None:
+def _ingest(session_factory, *, squad: str | None, source_ticket_id: str, event_id: str) -> None:
     session = session_factory()
     try:
         IngestionService(session).ingest(
@@ -43,7 +41,8 @@ def _ingest(session_factory, *, category: str | None, source_ticket_id: str, eve
                 source_ticket_id=source_ticket_id,
                 subject="Nao consigo acessar o sistema de RH",
                 description="Preciso de ajuda com acesso.",
-                category=category,
+                category="incident",
+                squad=squad,
             )
         )
     finally:
@@ -55,9 +54,9 @@ def _ingest(session_factory, *, category: str | None, source_ticket_id: str, eve
 # ---------------------------------------------------------------------------
 
 
-def test_known_category_never_calls_llm(session_factory, test_database_url, fake_jira: FakeJiraClient) -> None:
+def test_known_squad_never_calls_llm(session_factory, test_database_url, fake_jira: FakeJiraClient) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, category="incident", source_ticket_id="FS-LLM-1", event_id="evt-llm-1")
+    _ingest(session_factory, squad="Squad4", source_ticket_id="FS-LLM-1", event_id="evt-llm-1")
 
     llm = FakeLLMClient(error=LLMClientError("must not be called"))
     session = session_factory()
@@ -75,11 +74,11 @@ def test_known_category_never_calls_llm(session_factory, test_database_url, fake
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_category_llm_disabled_keeps_needs_human_review(
+def test_unknown_squad_llm_disabled_keeps_needs_human_review(
     session_factory, test_database_url, fake_jira: FakeJiraClient
 ) -> None:
     settings = _llm_settings(test_database_url, llm_enabled=False)
-    _ingest(session_factory, category="hardware", source_ticket_id="FS-LLM-2", event_id="evt-llm-2")
+    _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-2", event_id="evt-llm-2")
 
     session = session_factory()
     try:
@@ -95,13 +94,13 @@ def test_unknown_category_llm_disabled_keeps_needs_human_review(
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_category_llm_enabled_confident_response_routes(
+def test_unknown_squad_llm_enabled_confident_response_routes(
     session_factory, test_database_url, fake_jira: FakeJiraClient, db_session
 ) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, category="hardware", source_ticket_id="FS-LLM-3", event_id="evt-llm-3")
+    _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-3", event_id="evt-llm-3")
 
-    llm = FakeLLMClient(response=SquadClassification(squad="identity", confidence=0.9, reason="acesso"))
+    llm = FakeLLMClient(response=SquadClassification(squad="Squad1", confidence=0.9, reason="acesso"))
     session = session_factory()
     try:
         result = ProcessingService(session, fake_jira, settings, llm_client=llm).process_next()
@@ -109,14 +108,14 @@ def test_unknown_category_llm_enabled_confident_response_routes(
         session.close()
 
     assert result.status == "completed"
-    assert result.jira_issue_key == "IDEN-123"
+    assert result.jira_issue_key == "SQD-123"
 
     from sqlalchemy import select
     from app.repositories.schema import RoutingDecisionRow
 
     decision = db_session.execute(select(RoutingDecisionRow)).scalar_one()
-    assert decision.squad_id == "identity"
-    assert decision.rule_version == "llm/qwen3:8b@squad_classifier_v1"
+    assert decision.squad_id == "Squad1"
+    assert decision.rule_version == "llm/qwen3:8b@squad_classifier_v2"
     assert decision.needs_human_review is False
 
 
@@ -125,13 +124,13 @@ def test_unknown_category_llm_enabled_confident_response_routes(
 # ---------------------------------------------------------------------------
 
 
-def test_unknown_category_llm_below_threshold_needs_human_review(
+def test_unknown_squad_llm_below_threshold_needs_human_review(
     session_factory, test_database_url, fake_jira: FakeJiraClient, db_session
 ) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, category="hardware", source_ticket_id="FS-LLM-4", event_id="evt-llm-4")
+    _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-4", event_id="evt-llm-4")
 
-    llm = FakeLLMClient(response=SquadClassification(squad="identity", confidence=0.4, reason="talvez"))
+    llm = FakeLLMClient(response=SquadClassification(squad="Squad1", confidence=0.4, reason="talvez"))
     session = session_factory()
     try:
         result = ProcessingService(session, fake_jira, settings, llm_client=llm).process_next()
@@ -146,14 +145,14 @@ def test_unknown_category_llm_below_threshold_needs_human_review(
     decision = db_session.execute(select(RoutingDecisionRow)).scalar_one()
     assert decision.squad_id is None
     assert decision.confidence == 0.4
-    assert decision.rule_version == "llm/qwen3:8b@squad_classifier_v1"
+    assert decision.rule_version == "llm/qwen3:8b@squad_classifier_v2"
 
 
-def test_unknown_category_llm_returns_unknown_needs_human_review(
+def test_unknown_squad_llm_returns_unknown_needs_human_review(
     session_factory, test_database_url, fake_jira: FakeJiraClient
 ) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, category="hardware", source_ticket_id="FS-LLM-4b", event_id="evt-llm-4b")
+    _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-4b", event_id="evt-llm-4b")
 
     llm = FakeLLMClient(response=SquadClassification(squad="unknown", confidence=0.95, reason="ambiguo"))
     session = session_factory()
@@ -181,7 +180,7 @@ def test_llm_failure_degrades_to_human_review_never_fails(
     session_factory, test_database_url, fake_jira: FakeJiraClient, error: LLMClientError
 ) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, category="hardware", source_ticket_id=f"FS-LLM-{id(error)}", event_id=f"evt-{id(error)}")
+    _ingest(session_factory, squad=None, source_ticket_id=f"FS-LLM-{id(error)}", event_id=f"evt-{id(error)}")
 
     llm = FakeLLMClient(error=error)
     session = session_factory()
@@ -214,14 +213,15 @@ def test_llm_path_never_leaks_ticket_content_or_raw_output(
                 source_ticket_id="FS-LLM-LEAK",
                 subject=secret_subject,
                 description="descricao sigilosa",
-                category="hardware",
+                category="incident",
+                squad=None,
             )
         )
     finally:
         session.close()
 
     llm = FakeLLMClient(
-        response=SquadClassification(squad="identity", confidence=0.4, reason=secret_subject)
+        response=SquadClassification(squad="Squad1", confidence=0.4, reason=secret_subject)
     )
     session2 = session_factory()
     try:

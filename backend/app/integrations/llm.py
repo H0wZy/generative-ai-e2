@@ -12,23 +12,40 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Protocol
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from app.core.config import Settings
+from app.domain.squads import SQUADS, normalize_squad
 
-KNOWN_SQUADS = {"identity", "finance", "platform"}
+KNOWN_SQUADS = set(SQUADS)
 
-_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "squad_classifier_v1.txt"
-PROMPT_VERSION = "squad_classifier_v1"
+_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "squad_classifier_v2.txt"
+PROMPT_VERSION = "squad_classifier_v2"
 
 
 class SquadClassification(BaseModel):
-    squad: Literal["identity", "finance", "platform", "unknown"]
+    """Model output. ``squad`` is validated against the closed enum.
+
+    A value outside the enum — including one a ticket tried to inject — fails
+    validation, which the caller turns into human review.
+    """
+
+    squad: str
     confidence: float
     reason: str
+
+    @field_validator("squad")
+    @classmethod
+    def _squad_in_enum(cls, value: str) -> str:
+        if value == "unknown":
+            return value
+        canonical = normalize_squad(value)
+        if canonical is None:
+            raise ValueError("squad outside the closed enum")
+        return canonical
 
 
 class LLMClientError(Exception):

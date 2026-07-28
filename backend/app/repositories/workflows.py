@@ -65,6 +65,7 @@ class WorkflowRepository:
             description=payload.description,
             priority=payload.priority,
             category=payload.category,
+            squad=payload.squad,
             requester=payload.requester,
             occurred_at=payload.occurred_at,
         )
@@ -201,6 +202,7 @@ class WorkflowRepository:
                     id=uuid.uuid4(),
                     ticket_id=ticket.id,
                     jira_issue_key=jira_issue_key,
+                    link_origin="deterministic",
                 )
             )
 
@@ -330,6 +332,7 @@ class WorkflowRepository:
             description=ticket.description,
             priority=ticket.priority,
             category=ticket.category,
+            squad=ticket.squad,
         )
 
     # ------------------------------------------------------------------
@@ -365,6 +368,7 @@ class WorkflowRepository:
                 needs_human_review=workflow.needs_human_review,
                 last_error=workflow.last_error,
                 jira_issue_key=link.jira_issue_key if link else None,
+                link_origin=link.link_origin if link else None,  # type: ignore[arg-type]
                 ticket=WorkflowTicketSummary(
                     source_ticket_id=ticket.source_ticket_id,
                     subject=ticket.subject,
