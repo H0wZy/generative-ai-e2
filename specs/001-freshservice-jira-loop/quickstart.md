@@ -39,7 +39,7 @@ make test
 
 Esperado, além do baseline:
 
-- Chamado com `squad: "Squad4"` → `squad_id="Squad4"`, `confidence=1.0`,
+- Chamado com `squad: "SQUAD-04"` → `squad_id="SQUAD-04"`, `confidence=1.0`,
   `rule_version="routing-rules/v2"`, sem chamada ao LLM.
 - Chamado com `squad` vazio e `LLM_ENABLED=false` → `needs_human_review=True`.
 - Chamado com `squad: "SquadInexistente"` → fora do enum → revisão humana.
@@ -62,16 +62,23 @@ make routing-eval
 ```
 
 Esperado: imprime acurácia, taxa de abstenção e a lista de erros sobre o enum
-de 13 squads. O número é o que decide ativar ou não o LLM — se ficar abaixo de
-80%, `LLM_ENABLED` continua `false` e isso é resultado, não fracasso.
+de 8 squads genéricas. O número é o que decide ativar ou não o LLM — se ficar
+abaixo de 80%, `LLM_ENABLED` continua `false` e isso é resultado, não
+fracasso.
 
 ---
 
-## F2 — Sandbox vivo **[sandbox]**
+## F2 — Sandbox vivo **[sandbox, bloqueado]**
+
+A API key do Freshservice nunca foi liberada pelo admin do tenant do cliente,
+e replicar o tenant real é fora de escopo (ver D2 em `spec.md`). Este bloco
+fica documentado para o dia em que o acesso existir; até lá, `FreshserviceClient`
+pode ser exercitado contra um mock HTTP que fale o mesmo formato
+(`GET /api/v2/tickets`), apontando `FRESHSERVICE_DOMAIN` para ele.
 
 ```bash
 cp backend/.env.example backend/.env
-# preencher FRESHSERVICE_DOMAIN, FRESHSERVICE_API_KEY,
+# preencher FRESHSERVICE_DOMAIN, FRESHSERVICE_API_KEY (tenant real OU mock),
 #           JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_PROJECT_KEY
 make poll-once
 ```

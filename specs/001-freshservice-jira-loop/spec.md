@@ -374,12 +374,24 @@ destino.
 
 ## Decisões registradas
 
-- **D1 — Taxonomia de squad (resolvida em 2026-07-27)**: o conjunto fechado de
-  squads passa a ser o das squads reais da base histórica (Squad1, Squad2,
-  Squad4, Squad5, Squad6, Squad8, Datastage, Fresh, GCP, RPA, STD, VSSPS,
-  WordPress), substituindo o enum sintético anterior. O destino no Jira é
-  configurado por mapeamento versionado squad → destino, e o sandbox usa um
-  número reduzido de projetos com a squad expressa por atributo da issue
-  (componente/rótulo), em vez de um projeto por squad. Roteamento e painel
-  passam a usar o mesmo vocabulário, o que é o que torna a comparação
-  antes/depois direta.
+- **D1 — Taxonomia de squad (resolvida em 2026-07-27, revista em 2026-07-28)**:
+  o conjunto fechado de squads original era o das squads reais da base
+  histórica (Squad1, Squad2, Squad4, Squad5, Squad6, Squad8, Datastage, Fresh,
+  GCP, RPA, STD, VSSPS, WordPress), substituindo o enum sintético anterior. O
+  destino no Jira é configurado por mapeamento versionado squad → destino, e o
+  sandbox usa um número reduzido de projetos com a squad expressa por
+  atributo da issue (componente/rótulo), em vez de um projeto por squad.
+  **Revisão (D2)**: a conta não teve a API key do Freshservice liberada pelo
+  admin do tenant, e replicar o tenant real do cliente é inviável (grande
+  demais, fora do escopo deste projeto). O roteamento ao vivo (tickets novos)
+  passa a rodar contra um **mock**, com um enum genérico e reduzido de 8
+  squads (`SQUAD-01`..`SQUAD-08`), em vez do nome real das 13 squads do
+  cliente. A base histórica do Power BI (US2/US3) **não muda** — continua com
+  os nomes reais de squad da exportação, anonimizada como já estava. Como
+  consequência, o vocabulário de squad do roteamento ao vivo e o da base
+  histórica deixam de coincidir (a premissa original de "mesmo vocabulário"
+  do D1 não se aplica mais); os indicadores de cobertura (`link-coverage`)
+  não dependem de correspondência de nome de squad entre as duas origens,
+  então a métrica em si continua correta — só a comparação visual squad-a-
+  squad entre "antes" e "depois" deixa de ser direta. Ver ADR em
+  `docs/ai/ai-decisions.md`.

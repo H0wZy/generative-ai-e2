@@ -31,10 +31,12 @@ PAGE_SIZE = 100
 # Freshservice priority is an integer 1..4. Anything else falls back to medium.
 _PRIORITY_BY_CODE = {1: "low", 2: "medium", 3: "high", 4: "urgent"}
 
-# The squad may be a native field or a custom field, depending on the tenant.
-# Both are tried, in this order. Confirmed against the sandbox before F2 closes.
-_SQUAD_FIELDS = ("squad", "group_name")
-_SQUAD_CUSTOM_FIELDS = ("squad", "time", "equipe")
+# Squad lives in the native "squad" field. The real tenant was never reached
+# (no API key released for this account) — see docs/ai/ai-decisions.md for
+# the decision to run the pipeline against a mock instead of the client's
+# tenant, with 8 generic squads (SQUAD-01..SQUAD-08) in place of their org
+# chart. The mock's shape is ours to fix, so there is no field to guess here.
+_SQUAD_FIELD = "squad"
 
 
 @dataclass
@@ -72,22 +74,14 @@ def _priority(raw: Any) -> str:
 
 
 def _squad(ticket: dict) -> str | None:
-    """Pull the squad out of a ticket, native field or custom field.
+    """Pull the squad out of a ticket.
 
     Returns the raw string. Validating it against the closed enum is routing's
     job, not the adapter's — the adapter must not silently drop a value the
     routing layer would want to log as unknown.
     """
-    for name in _SQUAD_FIELDS:
-        value = ticket.get(name)
-        if value:
-            return str(value)[:40]
-    custom = ticket.get("custom_fields") or {}
-    for name in _SQUAD_CUSTOM_FIELDS:
-        value = custom.get(name)
-        if value:
-            return str(value)[:40]
-    return None
+    value = ticket.get(_SQUAD_FIELD)
+    return str(value)[:40] if value else None
 
 
 def to_ingest_request(ticket: dict) -> TicketIngestRequest:

@@ -80,7 +80,7 @@ Backend em `backend/`, frontend em `frontend/`. Caminhos abaixo são relativos
 - [x] T023 [US1] Reescrever `backend/tests/golden/routing_golden.jsonl` para as squads reais: mínimo 15 casos, ao menos 2 que devem resultar em abstenção e 1 de prompt injection
 - [x] T024 [US1] Ajustar `backend/scripts/routing_eval.py` ao enum novo e conferir que `make routing-eval` continua fora de `make test`
 - [x] T025 [US1] Criar `backend/app/integrations/freshservice.py`: cliente de leitura com Basic Auth, `GET /api/v2/tickets?updated_since=`, paginação, mapeamento de campos conforme `contracts/external.md`, e categorização de erro via T009. Incluir o dublê de teste no mesmo padrão do `FakeJiraClient`
-- [ ] T026 [US1] Confirmar no tenant sandbox o nome real do campo de squad (nativo ou `custom_fields.<nome>`) e fixar o mapeamento em `backend/app/integrations/freshservice.py` — confirmar, não presumir
+- [x] T026 [US1] ~~Confirmar no tenant sandbox o nome real do campo de squad~~ — bloqueado: API key do Freshservice nunca liberada pelo admin do tenant, e replicar o tenant real do cliente é inviável. Decisão (2026-07-28): rodar contra um **mock**, com enum genérico de 8 squads (`SQUAD-01`..`SQUAD-08`) em vez das 13 squads reais do cliente. Campo fixado em `squad` (nativo, mock) — sem lista de candidatos, porque o formato é nosso. Ver D2 em `spec.md` e ADR em `docs/ai/ai-decisions.md`
 - [x] T027 [US1] Em `backend/app/worker.py`: laço de polling no intervalo configurado, alimentando o `IngestionService` existente e avançando `sync_state` só após persistir a página
 - [x] T028 [US1] Atualizar a fixture de `make ingest-demo` para incluir o campo `squad`
 
@@ -245,6 +245,6 @@ Cada passo entrega valor sem quebrar o anterior.
 
 - Escrever o teste antes e confirmar que falha; a suíte inteira roda sem rede e sem credencial
 - `make routing-eval` exige Ollama e nunca entra em `make test`
-- T026 é confirmação contra o tenant real, não escolha de implementação — não presumir o nome do campo
+- T026 era confirmação contra o tenant real; virou decisão de produto (mock + squads genéricas) quando o acesso ao tenant real se mostrou inviável — ver a task e D2 em `spec.md`
 - Commit por task ou por grupo lógico; parar em qualquer checkpoint é seguro
 - FR-006, FR-007, FR-008, FR-022, FR-023 e FR-024 já estão implementados — preservá-los é tarefa de regressão (T052), não trabalho novo

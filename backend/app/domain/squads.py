@@ -1,28 +1,27 @@
-"""Closed squad enum — the real squads, taken from the Freshservice export.
+"""Closed squad enum — generic placeholders, not the client's real org chart.
 
-Replaces the synthetic ``identity``/``finance``/``platform`` set. The squad is
-already a filled-in field on the Freshservice ticket, so routing reads it
-instead of inferring it from the category.
+Replaces the synthetic ``identity``/``finance``/``platform`` set. The real
+Freshservice tenant is not reachable (no API key released for this account,
+and the client's org chart is out of scope to replicate), so the pipeline
+runs against a mock with 8 generic squads instead. The squad is a filled-in
+field on the ticket either way, so routing still just reads it instead of
+inferring it from the category.
 """
 from __future__ import annotations
 
 import unicodedata
 
-# Canonical spelling. Order is the order they appear in the historical export.
+# Canonical spelling. Generic placeholders (SQUAD-01..SQUAD-08) — see module
+# docstring for why these replace the client's real squad names.
 SQUADS: tuple[str, ...] = (
-    "Squad1",
-    "Squad2",
-    "Squad4",
-    "Squad5",
-    "Squad6",
-    "Squad8",
-    "Datastage",
-    "Fresh",
-    "GCP",
-    "RPA",
-    "STD",
-    "VSSPS",
-    "WordPress",
+    "SQUAD-01",
+    "SQUAD-02",
+    "SQUAD-03",
+    "SQUAD-04",
+    "SQUAD-05",
+    "SQUAD-06",
+    "SQUAD-07",
+    "SQUAD-08",
 )
 
 # Lookup keyed by the normalized form, so "squad 4" and "SQUAD4" both resolve.

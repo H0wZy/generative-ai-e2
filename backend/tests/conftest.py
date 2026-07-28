@@ -223,7 +223,7 @@ def synthetic_ticket(
     event_id: str = "evt-001",
     source_ticket_id: str = "FS-100",
     category: str = "incident",
-    squad: str | None = "Squad4",
+    squad: str | None = "SQUAD-04",
     external_correlation_id: str | None = "n8n-execution-001",
 ) -> dict:
     return {

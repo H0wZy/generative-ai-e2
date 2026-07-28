@@ -1,13 +1,21 @@
 # Contrato — sistemas externos consumidos
 
-Duas integrações, ambas contra contas sandbox reais. Nenhuma credencial neste
-documento nem no repositório.
+Jira contra conta sandbox real. Freshservice contra um **mock** — a conta
+não teve a API key liberada pelo admin do tenant, e replicar o tenant real
+do cliente é inviável (grande demais, fora do escopo). Nenhuma credencial
+neste documento nem no repositório.
 
 ---
 
-## Freshservice — leitura por polling
+## Freshservice — leitura por polling (mock)
 
 **Direção**: nós chamamos a API deles. Não recebemos webhook (R-003).
+
+**Nota**: o tenant real do Freshservice nunca foi alcançado. `FreshserviceClient`
+fala HTTP contra o que estiver configurado em `FRESHSERVICE_DOMAIN` — hoje
+isso é um servidor mock, não o cliente. O formato abaixo é o do mock, que é
+nosso e não precisa mais ser adivinhado (ver T026 e ADR em
+`docs/ai/ai-decisions.md`).
 
 **Autenticação**: chave de API em Basic Auth (chave como usuário, `X` como
 senha, conforme a documentação do Freshservice). Origem: `.env`.
@@ -32,12 +40,14 @@ FRESHSERVICE_POLL_INTERVAL_SECONDS=30
 | `description` | `description` | Entrada não confiável |
 | `priority` | `priority` | Mapeado para `low/medium/high/urgent` |
 | `category` | `category` | Preservado, já não decide a squad |
-| campo de squad | `squad` | **A regra determinística de roteamento** (R-001) |
+| `squad` (campo nativo do mock) | `squad` | **A regra determinística de roteamento** (R-001) |
 | `updated_at` | avanço de `sync_state.last_sync_at` | — |
 
-O nome exato do campo de squad no tenant precisa ser confirmado no sandbox
-antes de F2 — pode ser campo customizado, e nesse caso vem como
-`custom_fields.<nome>`. Confirmar contra o tenant, não presumir.
+O enum fechado de squad é genérico — `SQUAD-01` a `SQUAD-08` — em vez do
+nome real das squads do cliente (ver D2 em `spec.md` e o ADR de decisão). O
+campo `squad` do mock é lido direto, sem lista de candidatos: o formato é
+nosso, não precisa ser adivinhado contra um tenant que não temos como
+alcançar.
 
 **Idempotência**: cada ticket lido vira um evento com a chave existente
 (`source_system` + `source_ticket_id` + `event_type` + `event_id`). Um ticket

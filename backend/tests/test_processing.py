@@ -17,12 +17,12 @@ from tests.conftest import synthetic_ticket
 @pytest.mark.parametrize(
     ("squad", "expected_squad"),
     [
-        ("Squad4", "Squad4"),
-        ("Datastage", "Datastage"),
-        ("WordPress", "WordPress"),
-        ("SQUAD4", "Squad4"),        # case insensitive
-        ("  squad 4  ", "Squad4"),   # whitespace and separator tolerant
-        ("wordpress", "WordPress"),
+        ("SQUAD-04", "SQUAD-04"),
+        ("SQUAD-03", "SQUAD-03"),
+        ("SQUAD-08", "SQUAD-08"),
+        ("squad04", "SQUAD-04"),        # case insensitive
+        ("  squad 04  ", "SQUAD-04"),   # whitespace and separator tolerant
+        ("squad-08", "SQUAD-08"),
     ],
 )
 def test_known_squads_route_deterministically(squad: str, expected_squad: str) -> None:
@@ -52,7 +52,7 @@ def test_unknown_squad_requires_human_review(squad) -> None:
 
 
 def test_process_next_creates_jira_link_for_known_squad(client: TestClient) -> None:
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
 
     processed = client.post("/api/v1/workflows/process-next")
     assert processed.status_code == 200
@@ -66,21 +66,21 @@ def test_every_squad_lands_in_the_single_configured_project(
     client: TestClient, fake_jira: FakeJiraClient
 ) -> None:
     """Two different squads, same project — told apart by the label."""
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     client.post("/api/v1/workflows/process-next")
-    assert "squad-Squad4" in fake_jira.last_labels
+    assert "squad-SQUAD-04" in fake_jira.last_labels
 
     client.post(
         "/api/v1/tickets/ingest",
-        json=synthetic_ticket(event_id="evt-002", source_ticket_id="FS-101", squad="RPA"),
+        json=synthetic_ticket(event_id="evt-002", source_ticket_id="FS-101", squad="SQUAD-02"),
     )
     client.post("/api/v1/workflows/process-next")
-    assert "squad-RPA" in fake_jira.last_labels
+    assert "squad-SQUAD-02" in fake_jira.last_labels
     assert "freshservice-FS-101" in fake_jira.last_labels
 
 
 def test_completed_link_records_deterministic_origin(client: TestClient) -> None:
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     client.post("/api/v1/workflows/process-next")
 
     item = client.get("/api/v1/workflows").json()["items"][0]
@@ -136,7 +136,7 @@ def test_process_next_retryable_error_schedules_retry(
                 source_ticket_id="FS-999",
                 subject="Test retry",
                 category="incident",
-                squad="Squad4",
+                squad="SQUAD-04",
             )
         )
     finally:
@@ -176,7 +176,7 @@ def test_process_next_terminal_error_marks_failed(
                 source_ticket_id="FS-888",
                 subject="Test terminal failure",
                 category="incident",
-                squad="Squad4",
+                squad="SQUAD-04",
             )
         )
     finally:
@@ -234,7 +234,7 @@ def test_last_error_never_leaks_jira_response_body(
                 source_ticket_id=f"FS-leak-{http_status}",
                 subject="Test last_error sanitization",
                 category="incident",
-                squad="Squad4",
+                squad="SQUAD-04",
             )
         )
     finally:

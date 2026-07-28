@@ -35,7 +35,7 @@ O contrato deve ser versionado. Campos desconhecidos são preservados apenas qua
 
 ## Classificação de squad
 
-A squad vem preenchida do chamado e é validada contra o enum fechado das 13 squads reais — determinístico, confiança `1.0`, sem chamada ao modelo. Campo vazio ou valor fora do enum pode usar LLM, com saída JSON validada, versão de prompt/modelo e score de confiança. Abaixo do limiar, o item segue para revisão humana, não para criação automática.
+A squad vem preenchida do chamado e é validada contra o enum fechado das 8 squads genéricas do mock de Freshservice (`SQUAD-01`..`SQUAD-08`, ADR-011) — determinístico, confiança `1.0`, sem chamada ao modelo. Campo vazio ou valor fora do enum pode usar LLM, com saída JSON validada, versão de prompt/modelo e score de confiança. Abaixo do limiar, o item segue para revisão humana, não para criação automática.
 
 ## Destino no Jira
 

@@ -19,7 +19,7 @@ def _ingest_and_process(client: TestClient, **kwargs) -> dict:
 
 
 def test_list_workflows_returns_expected_shape(client: TestClient) -> None:
-    _ingest_and_process(client, squad="Squad4")
+    _ingest_and_process(client, squad="SQUAD-04")
 
     response = client.get("/api/v1/workflows")
     assert response.status_code == 200
@@ -48,7 +48,7 @@ def test_list_workflows_returns_expected_shape(client: TestClient) -> None:
 
 
 def test_list_workflows_never_leaks_requester(client: TestClient) -> None:
-    _ingest_and_process(client, squad="Squad4")
+    _ingest_and_process(client, squad="SQUAD-04")
     response = client.get("/api/v1/workflows")
     raw = response.text
     assert "requester" not in raw
@@ -56,7 +56,7 @@ def test_list_workflows_never_leaks_requester(client: TestClient) -> None:
 
 
 def test_list_workflows_orders_by_updated_at_desc(client: TestClient) -> None:
-    first = _ingest_and_process(client, event_id="evt-a", source_ticket_id="FS-A", squad="Squad4")
+    first = _ingest_and_process(client, event_id="evt-a", source_ticket_id="FS-A", squad="SQUAD-04")
     second = _ingest_and_process(client, event_id="evt-b", source_ticket_id="FS-B", squad=None)
 
     response = client.get("/api/v1/workflows")
@@ -67,7 +67,7 @@ def test_list_workflows_orders_by_updated_at_desc(client: TestClient) -> None:
 
 
 def test_list_workflows_filters_by_status(client: TestClient) -> None:
-    _ingest_and_process(client, event_id="evt-a", source_ticket_id="FS-A", squad="Squad4")
+    _ingest_and_process(client, event_id="evt-a", source_ticket_id="FS-A", squad="SQUAD-04")
     _ingest_and_process(client, event_id="evt-b", source_ticket_id="FS-B", squad=None)
 
     response = client.get("/api/v1/workflows", params={"status": "needs_human_review"})
@@ -96,7 +96,7 @@ def test_list_workflows_limit_default_and_cap(client: TestClient) -> None:
 
 
 def test_metrics_returns_all_fields(client: TestClient) -> None:
-    _ingest_and_process(client, squad="Squad4")
+    _ingest_and_process(client, squad="SQUAD-04")
 
     response = client.get("/api/v1/metrics")
     assert response.status_code == 200
@@ -128,7 +128,7 @@ def test_reprocess_unknown_id_returns_404(client: TestClient) -> None:
 
 
 def test_reprocess_completed_ticket_returns_409_with_existing_key(client: TestClient) -> None:
-    result = _ingest_and_process(client, squad="Squad4")
+    result = _ingest_and_process(client, squad="SQUAD-04")
     workflow_id = result["workflow_execution_id"]
 
     response = client.post(f"/api/v1/workflows/{workflow_id}/reprocess")
@@ -142,7 +142,7 @@ def test_reprocess_completed_ticket_returns_409_with_existing_key(client: TestCl
 
 def test_reprocess_ineligible_status_returns_409_not_eligible(client: TestClient) -> None:
     accepted = client.post(
-        "/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4")
+        "/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04")
     ).json()
     workflow_id = accepted["workflow_execution_id"]
     # Workflow still "pending" — never claimed by the worker, no Jira link.
@@ -158,7 +158,7 @@ def test_reprocess_ineligible_status_returns_409_not_eligible(client: TestClient
 def test_reprocess_failed_workflow_reschedules_and_returns_200(
     client: TestClient, fake_jira: FakeJiraClient
 ) -> None:
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     fake_jira.raise_error(JiraClientError(retryable=False, message="invalid project"))
     processed = client.post("/api/v1/workflows/process-next").json()
     assert processed["status"] == "failed"
@@ -180,7 +180,7 @@ def test_reprocess_failed_workflow_reschedules_and_returns_200(
 def test_reprocess_twice_never_creates_two_jira_links(
     client: TestClient, fake_jira: FakeJiraClient
 ) -> None:
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     fake_jira.raise_error(JiraClientError(retryable=False, message="invalid project"))
     processed = client.post("/api/v1/workflows/process-next").json()
     workflow_id = processed["workflow_execution_id"]
@@ -202,7 +202,7 @@ def test_completed_workflow_has_no_last_error(
 ) -> None:
     """A workflow that failed, then succeeded on reprocess, must not still
     display the stale error on the dashboard — current state is success."""
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     fake_jira.raise_error(JiraClientError(retryable=False, message="invalid project"))
     processed = client.post("/api/v1/workflows/process-next").json()
     assert processed["status"] == "failed"

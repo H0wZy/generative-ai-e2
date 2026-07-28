@@ -94,7 +94,7 @@ def test_link_coverage_endpoint_reports_both_populations(client: TestClient) -> 
     from tests.conftest import synthetic_ticket
 
     client.post("/api/v1/analytics/upload/commit", files=_files())
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     client.post("/api/v1/workflows/process-next")
 
     body = client.get("/api/v1/analytics/link-coverage").json()

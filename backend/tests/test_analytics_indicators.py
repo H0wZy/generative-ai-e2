@@ -218,7 +218,7 @@ def test_filters_from_both_bases_compose_as_intersection(loaded_base) -> None:
 def test_link_coverage_separates_the_two_populations(loaded_base, db_session, client) -> None:
     from tests.conftest import synthetic_ticket
 
-    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="Squad4"))
+    client.post("/api/v1/tickets/ingest", json=synthetic_ticket(squad="SQUAD-04"))
     client.post("/api/v1/workflows/process-next")
 
     result = A.link_coverage(loaded_base, db_session)

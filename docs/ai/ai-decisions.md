@@ -126,4 +126,18 @@ As decisões abaixo foram revisadas por pessoas e são fonte de contexto, não s
 
 Confirma, agora com 13 valores em vez de 3, que enum fechado protege contra saída **malformada** e não contra saída **válida-porém-manipulada**. O agravante em relação ao ADR-005: desde o ADR-008 a squad também vira rótulo na issue do Jira, então uma injeção bem-sucedida não só escolhe o backlog como marca a issue com a squad escolhida pelo atacante.
 
+**Nota (2026-07-28):** o enum e o golden set descritos acima foram substituídos pelo ADR-011 (mock com 8 squads genéricas). Os números medidos aqui (100% acurácia, 66,67% de sucesso de injeção) ficam registrados como histórico da taxonomia de 13 squads reais e não se aplicam mais sem nova medição — ver ADR-011.
+
+## ADR-011 — Mock do Freshservice com 8 squads genéricas, substituindo o tenant real
+
+**Status:** aceito.
+
+**Contexto:** a conta usada neste projeto não teve a API key do Freshservice liberada pelo admin do tenant do cliente (T026 ficou bloqueada por isso). Replicar o tenant real para destravar seria inviável: o tenant é grande e sua estrutura organizacional (as 13 squads nomeadas do ADR-006) é dado do cliente, fora do escopo de um projeto de bootcamp reproduzir.
+
+**Decisão:** o roteamento ao vivo passa a rodar contra um **mock** do Freshservice, não contra o tenant real. O enum fechado de squad (`app/domain/squads.py`) muda das 13 squads reais para 8 squads genéricas, `SQUAD-01` a `SQUAD-08`. O campo de squad no adaptador (`app/integrations/freshservice.py`) é fixado em `squad` (nativo), sem lista de candidatos — o formato do mock é nosso, não precisa ser adivinhado contra um tenant inalcançável. O prompt do classificador LLM (`squad_classifier_v2.txt`) ganhou uma tabela de responsabilidade por squad (ex.: `SQUAD-01` = cargas e pipelines de dados) para que a classificação por texto continue tendo sinal legítimo a inferir — com squads opacas, sem essa tabela o modelo não teria como saber que "Datastage" mapeia para `SQUAD-01`. O golden set (`routing_golden.jsonl`) foi reescrito para os novos IDs, mantendo a mesma cobertura (abstenção, injeção, keywords de tecnologia).
+
+**Consequência:** a base histórica do Power BI (US2/US3) **não muda** — continua com os nomes reais de squad da exportação, anonimizada como já estava. Isso quebra a premissa original do ADR-006 de "roteamento e painel falam o mesmo vocabulário": o vocabulário de squad do roteamento ao vivo (genérico) e o da base histórica (real) deixam de coincidir. Na prática isso não afeta a métrica de `link-coverage` (que não depende de correspondência de nome de squad entre as duas origens — lê `link_origin` de um lado e `freshservice_ticket_id` do outro), mas remove a leitura visual squad-a-squad entre "antes" e "depois" no painel de comparação. Os números do ADR-010 (acurácia e taxa de injeção sobre o enum de 13 squads) ficam como histórico; uma nova rodada de `make routing-eval` sobre o enum de 8 squads é necessária antes de reconsiderar `LLM_ENABLED`.
+
+**Auxílio de IA:** identificação de que o adaptador guardava uma lista de nomes de campo candidatos como hedge contra o tenant desconhecido, e de que essa lista deixa de fazer sentido quando o formato passa a ser definido por nós; desenho da tabela de responsabilidade por squad no prompt para preservar a validade do golden set sob squads opacas.
+
 **Auxílio de IA:** execução e leitura do golden set, e a distinção entre o que a acurácia mede e o que ela não mede.

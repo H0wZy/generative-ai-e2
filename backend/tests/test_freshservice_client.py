@@ -35,11 +35,11 @@ def fs_settings(test_database_url: str) -> Settings:
 def _ticket(ticket_id: int = 143695, updated_at: str = "2026-07-27T10:00:00Z", **overrides) -> dict:
     base = {
         "id": ticket_id,
-        "subject": "Job do Datastage falhou",
+        "subject": "Job de carga falhou",
         "description_text": "A carga abortou as 02h.",
         "priority": 3,
         "category": "incident",
-        "squad": "Datastage",
+        "squad": "SQUAD-01",
         "created_at": "2026-07-27T09:00:00Z",
         "updated_at": updated_at,
     }
@@ -55,15 +55,14 @@ def _ticket(ticket_id: int = 143695, updated_at: str = "2026-07-27T10:00:00Z", *
 def test_maps_ticket_fields_including_squad() -> None:
     event = to_ingest_request(_ticket())
     assert event.source_ticket_id == "143695"
-    assert event.squad == "Datastage"
+    assert event.squad == "SQUAD-01"
     assert event.priority == "high"
     assert event.category == "incident"
 
 
-def test_reads_squad_from_custom_field_when_native_absent() -> None:
-    """The tenant may carry squad as a custom field — both shapes are read."""
-    event = to_ingest_request(_ticket(squad=None, custom_fields={"squad": "RPA"}))
-    assert event.squad == "RPA"
+def test_squad_missing_is_none_not_dropped_silently() -> None:
+    event = to_ingest_request(_ticket(squad=None))
+    assert event.squad is None
 
 
 def test_squad_outside_enum_is_passed_through_not_dropped() -> None:

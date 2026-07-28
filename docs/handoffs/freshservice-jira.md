@@ -14,6 +14,8 @@ FastAPI é dono do contrato, das regras de negócio, da classificação, da idem
 
 **Mudança em relação ao desenho original (ADR-007):** o fluxo era `Freshservice → webhook → n8n → FastAPI`. O tenant sandbox é um serviço em nuvem; para entregar um webhook, a API local precisaria estar publicamente acessível — túnel mais autenticação de boundary que o MVP não tem, e que invalidaria a aceitação de "sem autenticação porque é execução local" registrada no README. O polling mantém a superfície local e elimina o segredo de assinatura do webhook. n8n permanece fora de escopo.
 
+**Freshservice é um mock, não o tenant real (ADR-011):** a conta não teve a API key liberada pelo admin do tenant do cliente, e replicar o tenant real é fora de escopo. `FreshserviceClient` fala o mesmo protocolo HTTP (`GET /api/v2/tickets`), só que contra um mock. Jira roda contra conta sandbox real.
+
 ## Responsabilidades
 
 | Componente | Responsabilidade |
@@ -29,7 +31,7 @@ FastAPI é dono do contrato, das regras de negócio, da classificação, da idem
 
 1. Receber ticket e preservar identificador de origem.
 2. Normalizar título, descrição, prioridade, categoria, solicitante e metadados autorizados de anexos.
-3. Identificar squad e backlog por regras versionadas — a squad vem do próprio campo do chamado, validada contra o enum fechado das 13 squads reais (ADR-006); casos sem squad conhecida seguem para revisão humana.
+3. Identificar squad e backlog por regras versionadas — a squad vem do próprio campo do chamado, validada contra o enum fechado das 8 squads genéricas do mock (ADR-011, substitui as 13 squads reais do ADR-006); casos sem squad conhecida seguem para revisão humana.
 4. Criar ou localizar a issue correspondente no Jira.
 5. Registrar decisão, tentativas, falhas e vínculo ticket ↔ Jira.
 

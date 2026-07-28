@@ -15,11 +15,18 @@ Freshservice. `CATEGORY_TO_SQUAD` é removido.
 **Rationale**: o mapeamento atual (`access → identity`, `billing → finance`,
 `incident/integration → platform`) é sintético; nenhuma dessas squads existe no
 ambiente real. O export do Power BI mostra que `Squad` já é uma coluna
-preenchida do chamado — 13 valores reais (Squad1, Squad2, Squad4, Squad5,
-Squad6, Squad8, Datastage, Fresh, GCP, RPA, STD, VSSPS, WordPress). Ler um
-campo que já existe é mais determinístico, mais barato e mais auditável do que
-inferir a squad a partir da categoria. `route_ticket()` continua puro e sem
-I/O; muda a entrada, não a natureza da função.
+preenchida do chamado. Ler um campo que já existe é mais determinístico, mais
+barato e mais auditável do que inferir a squad a partir da categoria.
+`route_ticket()` continua puro e sem I/O; muda a entrada, não a natureza da
+função.
+
+**Atualização (2026-07-28)**: o enum fechado usado pelo roteamento ao vivo
+não é mais o das 13 squads reais do cliente (Squad1, Squad2, Squad4, Squad5,
+Squad6, Squad8, Datastage, Fresh, GCP, RPA, STD, VSSPS, WordPress) — ver D2
+em `spec.md`. A API key do Freshservice nunca foi liberada e o tenant real é
+grande demais para replicar num sandbox de projeto. O roteamento roda contra
+um mock com 8 squads genéricas (`SQUAD-01`..`SQUAD-08`); a base histórica do
+Power BI continua com os nomes reais, sem mudança.
 
 **Alternatives considered**:
 - *Manter categoria → squad, com as squads reais no lado direito*: exigiria

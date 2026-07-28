@@ -157,11 +157,14 @@ justamente a aceitação de "sem autenticação porque é execução local" desc
 acima. Consequência assumida: a latência ponta a ponta passa a depender do
 intervalo de polling (30s por padrão).
 
-**Credenciais de sandbox pendentes.** As contas de Freshservice e Jira existem,
-mas a chave de API ainda não foi obtida e o nome real do campo de squad no
-tenant não foi confirmado (pode ser campo customizado). Até lá, o
-desenvolvimento e a suíte de testes usam dublês locais — `make test` roda verde
-sem credencial e sem rede.
+**Freshservice roda contra um mock, não o tenant real (ADR-011).** A conta não
+teve a API key liberada pelo admin do tenant do cliente, e replicar o tenant
+real (org chart de 13 squads, volume de dados) é fora de escopo. O enum
+fechado de squad passa a ser genérico — `SQUAD-01` a `SQUAD-08` — em vez do
+nome real das squads do cliente; a base histórica do Power BI (US2/US3) não
+muda. Jira roda contra conta sandbox real (credencial obtida e validada). Até
+o Freshservice real existir, desenvolvimento e suíte de testes usam dublês
+locais — `make test` roda verde sem credencial e sem rede.
 
 **Pseudonimização não é anonimato forte.** A base histórica carregada do export
 do Power BI tem os campos de pessoa substituídos por pseudônimo determinístico
@@ -172,13 +175,16 @@ demonstração local; não a publicação.
 
 **Classificação por LLM implementada, testada e desligada por padrão
 (`LLM_ENABLED=false`).** O roteamento de squad é determinístico primeiro — a
-squad vem preenchida do próprio chamado Freshservice e é validada contra o enum
-fechado das 13 squads reais (ADR-006); o LLM (`qwen3:8b` via Ollama local) só é
-consultado quando esse campo vem vazio ou com valor fora do enum.
+squad vem preenchida do próprio chamado Freshservice (mock, ver acima) e é
+validada contra o enum fechado das 8 squads genéricas (ADR-011); o LLM
+(`qwen3:8b` via Ollama local) só é consultado quando esse campo vem vazio ou
+com valor fora do enum.
 
 Golden set (`backend/tests/golden/routing_golden.jsonl`, 19 casos: 12 com squad
-esperada, 4 de abstenção, 3 de prompt injection), medido com `qwen3:8b` em
-2026-07-27:
+esperada, 4 de abstenção, 3 de prompt injection). **Os números abaixo foram
+medidos em 2026-07-27 contra o enum anterior de 13 squads reais (ADR-006) e
+ficam como histórico** — o golden set foi reescrito para os 8 IDs genéricos do
+ADR-011 e ainda não tem nova medição:
 
 | Métrica | Resultado |
 |---|---|
@@ -215,9 +221,10 @@ e revisada) ou uma defesa que não dependa do prompt; nenhuma das duas existe
 hoje.
 
 As garantias determinísticas valem com o LLM ligado ou desligado: enum fechado
-das 13 squads reais mais `unknown`, limiar de confiança e degradação para
-revisão humana em qualquer falha — Ollama fora do ar, JSON inválido, squad fora
-do enum ou confiança baixa nunca viram criação automática de issue.
+(hoje as 8 squads genéricas do ADR-011) mais `unknown`, limiar de confiança e
+degradação para revisão humana em qualquer falha — Ollama fora do ar, JSON
+inválido, squad fora do enum ou confiança baixa nunca viram criação automática
+de issue.
 
 **Sem paginação por cursor.** A listagem aplica apenas `LIMIT`, com teto de 200.
 Adequado ao volume sintético da demonstração.

@@ -56,7 +56,7 @@ def _ingest(session_factory, *, squad: str | None, source_ticket_id: str, event_
 
 def test_known_squad_never_calls_llm(session_factory, test_database_url, fake_jira: FakeJiraClient) -> None:
     settings = _llm_settings(test_database_url)
-    _ingest(session_factory, squad="Squad4", source_ticket_id="FS-LLM-1", event_id="evt-llm-1")
+    _ingest(session_factory, squad="SQUAD-04", source_ticket_id="FS-LLM-1", event_id="evt-llm-1")
 
     llm = FakeLLMClient(error=LLMClientError("must not be called"))
     session = session_factory()
@@ -100,7 +100,7 @@ def test_unknown_squad_llm_enabled_confident_response_routes(
     settings = _llm_settings(test_database_url)
     _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-3", event_id="evt-llm-3")
 
-    llm = FakeLLMClient(response=SquadClassification(squad="Squad1", confidence=0.9, reason="acesso"))
+    llm = FakeLLMClient(response=SquadClassification(squad="SQUAD-01", confidence=0.9, reason="acesso"))
     session = session_factory()
     try:
         result = ProcessingService(session, fake_jira, settings, llm_client=llm).process_next()
@@ -114,7 +114,7 @@ def test_unknown_squad_llm_enabled_confident_response_routes(
     from app.repositories.schema import RoutingDecisionRow
 
     decision = db_session.execute(select(RoutingDecisionRow)).scalar_one()
-    assert decision.squad_id == "Squad1"
+    assert decision.squad_id == "SQUAD-01"
     assert decision.rule_version == "llm/qwen3:8b@squad_classifier_v2"
     assert decision.needs_human_review is False
 
@@ -130,7 +130,7 @@ def test_unknown_squad_llm_below_threshold_needs_human_review(
     settings = _llm_settings(test_database_url)
     _ingest(session_factory, squad=None, source_ticket_id="FS-LLM-4", event_id="evt-llm-4")
 
-    llm = FakeLLMClient(response=SquadClassification(squad="Squad1", confidence=0.4, reason="talvez"))
+    llm = FakeLLMClient(response=SquadClassification(squad="SQUAD-01", confidence=0.4, reason="talvez"))
     session = session_factory()
     try:
         result = ProcessingService(session, fake_jira, settings, llm_client=llm).process_next()
@@ -221,7 +221,7 @@ def test_llm_path_never_leaks_ticket_content_or_raw_output(
         session.close()
 
     llm = FakeLLMClient(
-        response=SquadClassification(squad="Squad1", confidence=0.4, reason=secret_subject)
+        response=SquadClassification(squad="SQUAD-01", confidence=0.4, reason=secret_subject)
     )
     session2 = session_factory()
     try:
