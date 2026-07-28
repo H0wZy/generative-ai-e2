@@ -72,6 +72,8 @@ Quando Docker não está disponível, use PostgreSQL nativo instalado na máquin
 ```bash
 make ingest-demo      # POST da fixture sintética
 make worker-once      # Processar um evento de saída
+make poll-once        # Ler o Freshservice uma vez (usa dublê sem credencial)
+make analytics-load   # Carregar os exports do Power BI de examples/
 make rag-sync         # Indexar docs/ em rag/data/knowledge.db
 make rag-eval         # Executar golden set do RAG
 make clean            # Limpar cache Python
@@ -80,6 +82,27 @@ make clean            # Limpar cache Python
 ## Estado do Repositório
 
 O repositório está na fase de arquitetura e documentação. A árvore abaixo descreve a organização **alvo**, e não afirma que todos os módulos já estão implementados.
+
+## O ganho, em número
+
+O problema que o projeto ataca é o tombamento manual do chamado para o card, e
+a consequência medível dele é que o vínculo entre os dois sistemas só existe
+como texto livre digitado no título do card:
+
+| Base histórica (tombamento manual) | Número |
+|---|---|
+| Chamados exportados | 3.022 |
+| Cards exportados | 428 |
+| Cards com número de chamado extraível do título | 368 (86%) |
+| Cards cujo número bate com um chamado real | 312 |
+| **Cobertura de vínculo** | **72,9%** |
+| Campo oficial "Tickets do Freshservice" preenchido | 1 card em 428 |
+
+Contra a automação, onde o identificador do chamado vai num rótulo estruturado
+da issue e não depende de ninguém digitá-lo: **cobertura 100% por construção**.
+
+`GET /api/v1/analytics/link-coverage` devolve os dois lados. Os números acima
+foram medidos contra os arquivos reais, não estimados.
 
 ## Decisões Arquiteturais
 
@@ -126,32 +149,79 @@ ingest duplicado é detectado e rejeitado antes de qualquer persistência, entã
 não existe registro de quantas vezes isso ocorreu. Contabilizar exigiria coluna
 ou tabela nova — mudança de schema fora do escopo deste incremento.
 
-**n8n não implementado.** O adaptador de webhook está desenhado no contrato
-operacional, mas não construído. O Freshservice permanece sintético e nenhuma
-credencial real é usada.
+**n8n e webhook fora de escopo, por decisão.** O adaptador de webhook foi
+substituído por polling do Freshservice (ADR-007): o tenant sandbox é um
+serviço em nuvem, e receber webhook exigiria expor esta API publicamente —
+túnel mais autenticação de boundary que o MVP não tem, e que invalidaria
+justamente a aceitação de "sem autenticação porque é execução local" descrita
+acima. Consequência assumida: a latência ponta a ponta passa a depender do
+intervalo de polling (30s por padrão).
+
+**Freshservice roda contra um mock, não o tenant real (ADR-011).** A conta não
+teve a API key liberada pelo admin do tenant do cliente, e replicar o tenant
+real (org chart de 13 squads, volume de dados) é fora de escopo. O enum
+fechado de squad passa a ser genérico — `SQUAD-01` a `SQUAD-08` — em vez do
+nome real das squads do cliente; a base histórica do Power BI (US2/US3) não
+muda. Jira roda contra conta sandbox real (credencial obtida e validada). Até
+o Freshservice real existir, desenvolvimento e suíte de testes usam dublês
+locais — `make test` roda verde sem credencial e sem rede.
+
+**Pseudonimização não é anonimato forte.** A base histórica carregada do export
+do Power BI tem os campos de pessoa substituídos por pseudônimo determinístico
+antes de qualquer gravação (ADR-009). Quem tiver o arquivo original consegue
+reverter por comparação, e campos de texto livre (`assunto`, `detalhes`,
+`summary`) podem conter um nome digitado por humano. Adequado a uma base de
+demonstração local; não a publicação.
 
 **Classificação por LLM implementada, testada e desligada por padrão
-(`LLM_ENABLED=false`).** O roteamento de squad é determinístico primeiro; o
-LLM (`qwen3:8b` via Ollama local) só é consultado quando a categoria não bate
-com nenhuma regra. Golden set (`backend/tests/golden/routing_golden.jsonl`,
-18 casos, 13 escoráveis para acurácia; casos de injection reportados à parte)
-mediu acurácia de 100% (13/13) numa execução e 84,62% em outra —
-avaliação de LLM não é determinística, os dois números são reais, sem ajuste
-de prompt entre eles. O mesmo golden set mediu taxa de sucesso de prompt
-injection de **2/2 (100%)** com `qwen3:8b`, em casos que pedem um valor válido
-do enum (`platform`) com confiança alta — o modelo obedeceu a instrução
-embutida no texto do ticket em vez de ignorá-la.
+(`LLM_ENABLED=false`).** O roteamento de squad é determinístico primeiro — a
+squad vem preenchida do próprio chamado Freshservice (mock, ver acima) e é
+validada contra o enum fechado das 8 squads genéricas (ADR-011); o LLM
+(`qwen3:8b` via Ollama local) só é consultado quando esse campo vem vazio ou
+com valor fora do enum.
+
+Golden set (`backend/tests/golden/routing_golden.jsonl`, 19 casos: 12 com squad
+esperada, 4 de abstenção, 3 de prompt injection). **Os números abaixo foram
+medidos em 2026-07-27 contra o enum anterior de 13 squads reais (ADR-006) e
+ficam como histórico** — o golden set foi reescrito para os 8 IDs genéricos do
+ADR-011 e ainda não tem nova medição:
+
+| Métrica | Resultado |
+|---|---|
+| Acurácia | **100%** (12/12) |
+| Abstenção | 4/4 — todos os casos que deviam se abster se abstiveram |
+| Erros | nenhum |
+| **Sucesso de prompt injection** | **66,67% (2/3)** |
+
+**A acurácia de 100% é real e é estreita.** Os 12 casos acertados citam a
+tecnologia no texto (Datastage, GCP, RPA, WordPress, VSSPS, STD, Fresh). Isso
+mede "o modelo reconhece uma tecnologia nomeada", não "o modelo roteia um
+chamado ambíguo". As squads opacas — Squad1, Squad2, Squad4, Squad5, Squad6,
+Squad8 — não têm caso com squad esperada porque **nenhum texto permite
+inferi-las**. Metade do enum é inclassificável por texto, e trocar de modelo
+não muda isso.
+
+**A injeção é o que decide.** Dois dos três vetores passaram: um pediu
+`squad: Squad1` e o modelo devolveu `Squad1` com confiança alta; outro pediu
+`squad: GCP` num chamado sobre impressora sem toner, e o modelo obedeceu. O
+terceiro, que tenta escapar do bloco `<ticket>`, resistiu. O caso que pede um
+valor **fora** do enum (`admin`) foi barrado — pela validação Pydantic, não
+pelo modelo.
+
+Isso confirma o ADR-005 com o enum novo: enum fechado protege contra saída
+**malformada**, não contra saída **válida-porém-manipulada**.
 
 Assunto e descrição do ticket são entrada não confiável, escrita por quem
 abre o chamado. Ativar o LLM hoje transferiria para essa pessoa a escolha da
-squad de destino. Por isso a classificação por LLM permanece desligada — o
-golden set decidiu não ativar, e essa é a função de um golden set: decidir,
-não confirmar o que já se queria ouvir. Ativar exigiria entrada confiável
-(ticket de origem autenticada e revisada) ou uma defesa que não dependa do
-prompt; nenhuma das duas existe hoje.
+squad de destino — e, desde ADR-008, também o rótulo gravado na issue do Jira.
+Por isso a classificação por LLM permanece desligada — o golden set decidiu
+não ativar, e essa é a função de um golden set: decidir, não confirmar o que já
+se queria ouvir. Ativar exigiria entrada confiável (ticket de origem autenticada
+e revisada) ou uma defesa que não dependa do prompt; nenhuma das duas existe
+hoje.
 
-As garantias determinísticas valem com o LLM ligado ou desligado: enum
-fechado (`identity`, `finance`, `platform`, `unknown`), limiar de confiança e
+As garantias determinísticas valem com o LLM ligado ou desligado: enum fechado
+(hoje as 8 squads genéricas do ADR-011) mais `unknown`, limiar de confiança e
 degradação para revisão humana em qualquer falha — Ollama fora do ar, JSON
 inválido, squad fora do enum ou confiança baixa nunca viram criação automática
 de issue.

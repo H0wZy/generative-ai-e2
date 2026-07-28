@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { ReprocessButton } from './reprocess-button'
 
 const API_URL = process.env.API_URL || 'http://localhost:8000'
@@ -127,13 +128,21 @@ export default async function Home() {
   return (
     <div className="flex flex-1 flex-col bg-zinc-950 px-6 py-10 text-zinc-100 sm:px-10">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Painel de operação
-          </h1>
-          <p className="text-sm text-zinc-400">
-            Freshservice → Jira · execuções e exceções
-          </p>
+        <header className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Painel de operação
+            </h1>
+            <p className="text-sm text-zinc-400">
+              Freshservice → Jira · execuções e exceções
+            </p>
+          </div>
+          <Link
+            href="/analytics"
+            className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
+          >
+            Painel analítico
+          </Link>
         </header>
 
         <section aria-label="Métricas">

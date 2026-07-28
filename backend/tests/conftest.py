@@ -28,6 +28,7 @@ from app.domain.models import (
 from app.integrations.jira import FakeJiraClient
 from app.main import create_app
 from app.repositories.schema import Base
+from app.services.analytics.tables import ANALYTICS_SCHEMA, analytics_metadata
 from app.repositories.workflows import WorkflowRepository
 from app.services.ingestion import IngestionService
 from app.services.processing import ProcessingService
@@ -59,8 +60,12 @@ def test_database_url() -> str:
 @pytest.fixture(scope="session")
 def engine(test_database_url: str):
     eng = make_engine(test_database_url)
+    with eng.begin() as conn:
+        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {ANALYTICS_SCHEMA}"))
     Base.metadata.create_all(eng)
+    analytics_metadata.create_all(eng)
     yield eng
+    analytics_metadata.drop_all(eng)
     Base.metadata.drop_all(eng)
     eng.dispose()
 
@@ -71,6 +76,10 @@ def engine(test_database_url: str):
 
 # Tables in dependency order so FK constraints don't break TRUNCATE CASCADE
 _TABLES = [
+    "analytics.chamados_abertos",
+    "analytics.chamados_fechados",
+    "analytics.jira_cards",
+    "sync_state",
     "audit_logs",
     "jira_issue_links",
     "outbox_events",
@@ -115,9 +124,7 @@ def test_settings(test_database_url: str) -> Settings:
     return Settings(
         database_url=test_database_url,  # type: ignore[arg-type]
         jira_base_url=None,
-        jira_project_platform="PLAT",
-        jira_project_identity="IDEN",
-        jira_project_finance="FIN",
+        jira_project_key="SQD",
     )
 
 
@@ -195,6 +202,15 @@ def client(test_settings: Settings, session_factory: sessionmaker[Session], fake
             return JSONResponse(status_code=409, content=response.model_dump(mode="json"))
         return response
 
+    # Analytics routes come straight from the production router — no test
+    # override — so the upload flow is exercised as it actually ships.
+    from app.api.routes import create_router as _create_router
+
+    production = _create_router(test_settings, session_factory)
+    for route in production.routes:
+        if "/analytics" in getattr(route, "path", ""):
+            router.routes.append(route)
+
     app.include_router(router)
     return TestClient(app)
 
@@ -207,6 +223,7 @@ def synthetic_ticket(
     event_id: str = "evt-001",
     source_ticket_id: str = "FS-100",
     category: str = "incident",
+    squad: str | None = "SQUAD-04",
     external_correlation_id: str | None = "n8n-execution-001",
 ) -> dict:
     return {
@@ -218,6 +235,7 @@ def synthetic_ticket(
         "description": "Aplicacao nao responde.",
         "priority": "high",
         "category": category,
+        "squad": squad,
         "requester": "user@example.test",
         "attachments": [],
         "external_correlation_id": external_correlation_id,

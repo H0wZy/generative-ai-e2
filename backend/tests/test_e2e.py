@@ -19,7 +19,7 @@ def test_fixture_ingests_then_worker_creates_expected_jira_link(
     assert processed.status_code == 200
     body = processed.json()
     assert body["status"] == "completed"
-    assert body["jira_issue_key"] == "PLAT-123"
+    assert body["jira_issue_key"] == "SQD-123"
     assert int(body["attempt_count"]) == 1
 
 

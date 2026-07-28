@@ -40,6 +40,8 @@ class TicketRow(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     priority: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
     category: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Squad as the source system reported it — not the routing decision.
+    squad: Mapped[str | None] = mapped_column(String(40), nullable=True)
     requester: Mapped[str | None] = mapped_column(String(255), nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -148,11 +150,23 @@ class JiraIssueLinkRow(Base):
         UUID(as_uuid=True), ForeignKey("tickets.id", ondelete="RESTRICT"), nullable=False, unique=True
     )
     jira_issue_key: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
+    # 'deterministic' = created by the automation. 'best_effort' = reconstructed
+    # from free text. The comparison between the two is the point of the feature.
+    link_origin: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="deterministic", default="deterministic"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     ticket: Mapped[TicketRow] = relationship(back_populates="jira_issue_link")
+
+
+class SyncStateRow(Base):
+    __tablename__ = "sync_state"
+
+    source: Mapped[str] = mapped_column(Text, primary_key=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLogRow(Base):
