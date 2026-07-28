@@ -82,7 +82,7 @@ JIRA_PROJECT_KEY=                 # substitui JIRA_PROJECT_IDENTITY/_FINANCE/_PL
     "project": { "key": "<JIRA_PROJECT_KEY>" },
     "summary": "<assunto do chamado>",
     "description": "<ADF>",
-    "issuetype": { "name": "Task" },
+    "issuetype": { "name": "Tarefa" },
     "labels": [
       "freshservice-<source_ticket_id>",
       "trace-<internal_correlation_id>",
@@ -91,6 +91,10 @@ JIRA_PROJECT_KEY=                 # substitui JIRA_PROJECT_IDENTITY/_FINANCE/_PL
   }
 }
 ```
+
+`issuetype.name` confirmado contra o sandbox real (`FRESH`): o projeto não
+tem o tipo `Task`, só nomes em pt-BR (`Tarefa`, `Épico`, `Bug`, etc.) — valor
+fixado em `Tarefa`, não presumido.
 
 `squad-<squad_id>` é o rótulo novo (R-002). Os outros dois já existem.
 

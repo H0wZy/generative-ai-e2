@@ -109,7 +109,7 @@ class JiraClient:
                 "project": {"key": project_key},
                 "summary": ticket.subject,
                 "description": to_atlassian_document(ticket.description),
-                "issuetype": {"name": "Task"},
+                "issuetype": {"name": "Tarefa"},  # sandbox project has no "Task" type, only pt-BR names
                 # freshservice-<id> is the structured link: the ticket number no
                 # longer depends on someone typing it into the summary.
                 "labels": [
