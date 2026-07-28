@@ -7,27 +7,29 @@ Transformar tickets do Freshservice em issues Jira no backlog da squad correta, 
 ## Arquitetura
 
 ```text
-Freshservice → webhook → n8n → FastAPI → PostgreSQL → fila/worker → Jira REST API
+Freshservice ←(polling)← FastAPI → PostgreSQL → fila/worker → Jira REST API
 ```
 
-O n8n é adaptador e orquestrador de integração. FastAPI é dono do contrato, das regras de negócio, da classificação, da idempotência e do estado operacional. O worker executa chamadas externas e retries.
+FastAPI é dono do contrato, das regras de negócio, da classificação, da idempotência e do estado operacional. O worker faz o polling do Freshservice, executa as chamadas externas e os retries.
+
+**Mudança em relação ao desenho original (ADR-007):** o fluxo era `Freshservice → webhook → n8n → FastAPI`. O tenant sandbox é um serviço em nuvem; para entregar um webhook, a API local precisaria estar publicamente acessível — túnel mais autenticação de boundary que o MVP não tem, e que invalidaria a aceitação de "sem autenticação porque é execução local" registrada no README. O polling mantém a superfície local e elimina o segredo de assinatura do webhook. n8n permanece fora de escopo.
 
 ## Responsabilidades
 
 | Componente | Responsabilidade |
 |---|---|
-| Freshservice | Origem do evento e dados do ticket |
-| n8n | Receber/adaptar webhook e chamar a ingestão autenticada |
+| Freshservice | Origem do evento e dados do ticket, incluindo o campo de squad |
+| Poller | Ler tickets atualizados desde a marca de sincronização e chamar a ingestão |
 | FastAPI | Validar schema, persistir estado, decidir roteamento e expor operação |
 | Worker | Criar/localizar issue Jira, retry e atualização de estado |
-| Jira | Backlog de destino |
+| Jira | Backlog de destino (projeto único; a squad vai como rótulo da issue) |
 | PostgreSQL | Fonte de verdade operacional, auditoria, vínculo e reprocessamento |
 
 ## Requisitos funcionais
 
 1. Receber ticket e preservar identificador de origem.
 2. Normalizar título, descrição, prioridade, categoria, solicitante e metadados autorizados de anexos.
-3. Identificar squad e backlog por regras versionadas; casos de baixa confiança seguem para revisão humana.
+3. Identificar squad e backlog por regras versionadas — a squad vem do próprio campo do chamado, validada contra o enum fechado das 13 squads reais (ADR-006); casos sem squad conhecida seguem para revisão humana.
 4. Criar ou localizar a issue correspondente no Jira.
 5. Registrar decisão, tentativas, falhas e vínculo ticket ↔ Jira.
 
@@ -45,8 +47,8 @@ Aplicar regras determinísticas primeiro. LLM é opcional e apenas para ambiguid
 
 ## Segurança e dados
 
-- Confirmar o mecanismo disponível de autenticação/assinatura do webhook no Freshservice antes de implementar.
-- Autenticar chamadas n8n → FastAPI e validar payload versionado.
+- Não há webhook a autenticar: a leitura é iniciada por nós, com chave de API em Basic Auth (ADR-007).
+- Distinguir falha de credencial (`auth`), de conectividade (`connectivity`, inclui bloqueio de proxy corporativo) e de negócio (`business`) na causa registrada — um proxy respondendo 403 é indistinguível de chave rejeitada sem essa separação.
 - Armazenar segredos em Secret Manager e aplicar menor privilégio em Jira/Freshservice.
 - Definir MIME allowlist, tamanho, retenção e verificação de anexos antes de transferi-los.
 - Não registrar credenciais ou PII desnecessária em logs, DLQ, screenshots ou evidências.
