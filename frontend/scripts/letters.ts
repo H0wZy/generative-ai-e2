@@ -5,14 +5,33 @@
  * Estilo inspirado na referência: letras geométricas em blocos,
  * contorno/sombra deslocada e paleta coral/laranja.
  *
- * Instalação:
- *   npm i figlet gradient-string
+ * Roda automaticamente antes de `npm run dev` (script "predev"),
+ * ou sozinho via `npm run banner`.
  *
- * Execução:
- *   node banner.js
+ * Executado direto pelo Node (v22.18+), que remove os tipos em tempo de
+ * carga — sem passo de build.
  */
 
-const CONFIG = {
+import type { FontName } from "figlet";
+
+type TextConfig = {
+  value: string;
+  colors: string[];
+  row: number;
+};
+
+type Figlet = typeof import("figlet").default;
+type Gradient = typeof import("gradient-string").default;
+
+type RenderedText = {
+  row: number;
+  value: string;
+  art: string;
+  coloredArt: string;
+  font: string;
+};
+
+const CONFIG: { fonts: FontName[]; texts: TextConfig[] } = {
   fonts: ["ANSI Shadow", "Doom", "Big"],
 
   texts: [
@@ -29,7 +48,10 @@ const CONFIG = {
   ],
 };
 
-async function loadDependencies() {
+async function loadDependencies(): Promise<{
+  figlet: Figlet;
+  gradient: Gradient;
+} | null> {
   try {
     const [figletModule, gradientModule] = await Promise.all([
       import("figlet"),
@@ -42,14 +64,14 @@ async function loadDependencies() {
     };
   } catch (error) {
     console.error("\n\x1b[31m[Banner] Dependências não encontradas.\x1b[0m");
-    console.error("Execute: npm i figlet gradient-string\n");
-    console.error(`Detalhes: ${error.message}`);
+    console.error("Execute: npm install (figlet e gradient-string sao devDependencies)\n");
+    console.error(`Detalhes: ${(error as Error).message}`);
     process.exitCode = 1;
     return null;
   }
 }
 
-function figletText(figlet, text, font) {
+function figletText(figlet: Figlet, text: string, font: FontName): Promise<string> {
   return new Promise((resolve, reject) => {
     figlet.text(
       text,
@@ -62,14 +84,17 @@ function figletText(figlet, text, font) {
       },
       (error, result) => {
         if (error) return reject(error);
-        resolve(result);
+        resolve(result ?? "");
       },
     );
   });
 }
 
-async function createBannerWithFallback(figlet, text) {
-  let lastError;
+async function createBannerWithFallback(
+  figlet: Figlet,
+  text: string,
+): Promise<{ art: string; font: string }> {
+  let lastError: unknown;
 
   for (const font of CONFIG.fonts) {
     try {
@@ -87,12 +112,7 @@ async function createBannerWithFallback(figlet, text) {
   );
 }
 
-function visibleWidth(line) {
-  // Remove sequências ANSI antes de calcular a largura visual.
-  return line.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "").length;
-}
-
-function joinArtsHorizontally(arts, spacing = 4) {
+function joinArtsHorizontally(arts: string[], spacing = 4): string {
   const separator = ' '.repeat(spacing);
 
   const splitArts = arts.map((art) => art.split('\n'));
@@ -108,7 +128,7 @@ function joinArtsHorizontally(arts, spacing = 4) {
   }).join('\n');
 }
 
-async function renderBanner() {
+async function renderBanner(): Promise<void> {
   const dependencies = await loadDependencies();
 
   if (!dependencies) {
@@ -118,7 +138,7 @@ async function renderBanner() {
   const { figlet, gradient } = dependencies;
 
   try {
-    const renderedTexts = [];
+    const renderedTexts: RenderedText[] = [];
 
     for (const textConfig of CONFIG.texts) {
       const { art, font } = await createBannerWithFallback(
@@ -139,14 +159,12 @@ async function renderBanner() {
     }
 
     // Agrupa os textos conforme a propriedade "row".
-    const groupedRows = new Map();
+    const groupedRows = new Map<number, RenderedText[]>();
 
     for (const renderedText of renderedTexts) {
-      if (!groupedRows.has(renderedText.row)) {
-        groupedRows.set(renderedText.row, []);
-      }
-
-      groupedRows.get(renderedText.row).push(renderedText);
+      const row = groupedRows.get(renderedText.row) ?? [];
+      row.push(renderedText);
+      groupedRows.set(renderedText.row, row);
     }
 
     // Ordena as linhas: row 1, row 2, row 3...
@@ -188,7 +206,7 @@ async function renderBanner() {
       '\n\x1b[31m[Banner] Não foi possível gerar o banner.\x1b[0m',
     );
 
-    console.error(`Detalhes: ${error.message}\n`);
+    console.error(`Detalhes: ${(error as Error).message}\n`);
     process.exitCode = 1;
   }
 }
