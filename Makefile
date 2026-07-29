@@ -1,11 +1,53 @@
-.PHONY: help up down db-init-local migrate migrate-test test test-unit ingest-demo worker-once clean routing-eval rag-sync rag-eval serve
+.PHONY: help up down db-init-local migrate migrate-test test test-unit ingest-demo worker-once clean routing-eval rag-sync rag-eval serve \
+        dev dev-down dev-logs venv install install-dev install-rag rag-test api-up frontend spec spec-list spec-current sdd
 
 BACKEND_DIR := backend
+VENV        := $(CURDIR)/.venv
+PY          := $(VENV)/bin/python
+SPECIFY     := .specify/scripts/bash/create-new-feature.sh
 DB_URL      ?= postgresql://genai_e2:genai_e2_dev@localhost:5432/genai_e2
 TEST_DB_URL ?= postgresql://genai_e2:genai_e2_dev@localhost:5432/genai_e2_test
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN{FS=":.*?## "}{printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+## ─── Dev environment ────────────────────────────────────────────────────────
+
+dev: up api-up migrate frontend ## One command dev stack: postgres + api container + .venv + migrations + frontend
+
+dev-down: ## Stop the whole dev stack
+	docker compose down --remove-orphans
+
+dev-logs: ## Tail api + postgres logs
+	docker compose logs -f api postgres
+
+$(PY):
+	python3 -m venv $(VENV)
+	$(PY) -m pip install -q --upgrade pip
+	$(PY) -m pip install -q -r $(BACKEND_DIR)/requirements-dev.txt -e $(BACKEND_DIR)
+
+venv: $(PY) ## Create .venv and install backend deps (activate: source .venv/bin/activate)
+	@echo "venv ready -> source $(VENV)/bin/activate"
+
+install: $(PY) frontend/node_modules ## Install/update backend runtime deps (.venv) and frontend deps (npm)
+	$(PY) -m pip install -r $(BACKEND_DIR)/requirements.txt
+
+install-dev: install ## Also install dev deps and the backend app in editable mode
+	$(PY) -m pip install -r $(BACKEND_DIR)/requirements-dev.txt -e $(BACKEND_DIR)
+
+install-rag: $(PY) ## Install RAG deps in .venv (CPU-only torch, ~750MB instead of ~3.9GB with CUDA)
+	$(PY) -m pip install --index-url https://download.pytorch.org/whl/cpu torch
+	$(PY) -m pip install -r rag/requirements.txt
+
+api-up: ## Build and start the backend API container (port 8000)
+	docker compose up -d --build api
+
+frontend/node_modules: frontend/package-lock.json
+	cd frontend && npm ci
+	@touch frontend/node_modules
+
+frontend: frontend/node_modules ## Start the Next.js dev server (foreground, port 3000)
+	cd frontend && npm run dev
 
 ## ─── Infrastructure ─────────────────────────────────────────────────────────
 
@@ -37,27 +79,27 @@ db-init-local: ## Create role and databases in local PostgreSQL (requires Postgr
 
 ## ─── Migrations ─────────────────────────────────────────────────────────────
 
-migrate: ## Apply Alembic migrations to dev database
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m alembic upgrade head
+migrate: $(PY) ## Apply Alembic migrations to dev database
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m alembic upgrade head
 
-migrate-test: ## Apply Alembic migrations to test database
-	cd $(BACKEND_DIR) && DATABASE_URL=$(TEST_DB_URL) python -m alembic upgrade head
+migrate-test: $(PY) ## Apply Alembic migrations to test database
+	cd $(BACKEND_DIR) && DATABASE_URL=$(TEST_DB_URL) $(PY) -m alembic upgrade head
 
 ## ─── Tests ───────────────────────────────────────────────────────────────────
 
-test: ## Run full test suite
-	cd $(BACKEND_DIR) && TEST_DATABASE_URL=$(TEST_DB_URL) python -m pytest -v
+test: $(PY) ## Run full test suite
+	cd $(BACKEND_DIR) && TEST_DATABASE_URL=$(TEST_DB_URL) $(PY) -m pytest -v
 
-test-unit: ## Run unit tests only (no DB required)
-	cd $(BACKEND_DIR) && python -m pytest tests/test_jira_client.py -v
+test-unit: $(PY) ## Run unit tests only (no DB required)
+	cd $(BACKEND_DIR) && $(PY) -m pytest tests/test_jira_client.py -v
 
-routing-eval: ## Evaluate LLM squad classification against the golden set (requires Ollama, not part of make test)
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) LLM_ENABLED=true python -m scripts.routing_eval
+routing-eval: $(PY) ## Evaluate LLM squad classification against the golden set (requires Ollama, not part of make test)
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) LLM_ENABLED=true $(PY) -m scripts.routing_eval
 
 ## ─── API ──────────────────────────────────────────────────────────────────────
 
-serve: ## Start API locally (requires make up + make migrate first)
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) uvicorn app.main:app --reload --port 8000
+serve: $(PY) ## Start API locally, outside Docker (requires make up + make migrate first)
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m uvicorn app.main:app --reload --port 8000
 
 ## ─── Demo ────────────────────────────────────────────────────────────────────
 
@@ -67,25 +109,52 @@ ingest-demo: ## POST the synthetic fixture to the local API
 	  -H "Content-Type: application/json" \
 	  -d @$(BACKEND_DIR)/tests/fixtures/ticket_created.json | python3 -m json.tool
 
-worker-once: ## Claim and process one outbox event
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m app.worker --once
+worker-once: $(PY) ## Claim and process one outbox event
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m app.worker --once
 
-poll-once: ## Poll Freshservice once for tickets updated since the last sync
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m app.worker --poll-once
+poll-once: $(PY) ## Poll Freshservice once for tickets updated since the last sync
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m app.worker --poll-once
 
-analytics-load: ## Load the Power BI exports from examples/ into the analytics schema
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) python -m scripts.analytics_load ../examples
+analytics-load: $(PY) ## Load the Power BI exports from examples/ into the analytics schema
+	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m scripts.analytics_load ../examples
 
 ## ─── RAG ─────────────────────────────────────────────────────────────────────
 
-rag-sync: ## Incrementally index docs/**/*.md into rag/data/knowledge.db
-	python3 -m rag.sync
+rag-sync: $(PY) ## Incrementally index docs/**/*.md into rag/data/knowledge.db
+	$(PY) -m rag.sync
 
-rag-eval: ## Run the RAG golden set and print recall@5
-	python3 -m rag.golden.eval
+rag-eval: $(PY) ## Run the RAG golden set and print recall@5
+	$(PY) -m rag.golden.eval
+
+rag-test: $(PY) ## Run the RAG test suite
+	$(PY) -m pytest rag/tests -v
+
+## ─── Spec-Driven Development (GitHub Spec Kit) ───────────────────────────────
+
+spec: ## New spec: make spec D="descricao da feature" [NAME=short-name] [N=numero]
+	@test -n '$(D)' || { echo 'Usage: make spec D="feature description" [NAME=short-name] [N=number]'; exit 1; }
+	@$(SPECIFY) $(if $(NAME),--short-name '$(NAME)') $(if $(N),--number '$(N)') '$(D)'
+
+spec-list: ## List existing feature specs
+	@ls -1 specs 2>/dev/null || echo "no specs yet"
+
+spec-current: ## Show the feature the Spec Kit commands are currently pointed at
+	@cat .specify/feature.json 2>/dev/null || echo "no active feature"
+
+sdd: ## Print the spec-driven workflow (slash commands to run inside Claude Code)
+	@echo "1. make spec D=\"descricao\" NAME=short-name   # creates specs/NNN-short-name/spec.md"
+	@echo "2. /speckit.specify   <descricao>             # fills the spec"
+	@echo "3. /speckit.clarify                           # resolves open questions"
+	@echo "4. /speckit.plan                              # plan.md + research/contracts"
+	@echo "5. /speckit.tasks                             # tasks.md"
+	@echo "6. /speckit.analyze                           # consistency check before coding"
+	@echo "7. /speckit.implement                         # execute tasks.md"
+	@echo "Active feature: make spec-current"
 
 ## ─── Maintenance ──────────────────────────────────────────────────────────────
 
-clean: ## Remove Python cache files
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -name "*.pyc" -delete 2>/dev/null || true
+clean: ## Remove Python caches and build artifacts (keeps .venv and node_modules)
+	find . -path ./.venv -prune -o -path ./node_modules -prune -o \
+	  \( -type d -name __pycache__ -o -type d -name .pytest_cache -o -type d -name "*.egg-info" \) \
+	  -print -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -name "*.pyc" -print -delete 2>/dev/null || true
