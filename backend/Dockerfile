@@ -7,17 +7,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY pyproject.toml requirements.txt ./
 
 # Install runtime dependencies only (no dev extras)
-RUN pip install --no-cache-dir \
-    alembic \
-    fastapi \
-    httpx \
-    "psycopg[binary]" \
-    pydantic-settings \
-    sqlalchemy \
-    "uvicorn[standard]"
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
