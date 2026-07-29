@@ -38,6 +38,7 @@ def test_list_workflows_returns_expected_shape(client: TestClient) -> None:
         "last_error",
         "jira_issue_key",
         "link_origin",
+        "reprocess_eligible",
         "ticket",
         "updated_at",
     }

@@ -141,3 +141,23 @@ Confirma, agora com 13 valores em vez de 3, que enum fechado protege contra saí
 **Auxílio de IA:** identificação de que o adaptador guardava uma lista de nomes de campo candidatos como hedge contra o tenant desconhecido, e de que essa lista deixa de fazer sentido quando o formato passa a ser definido por nós; desenho da tabela de responsabilidade por squad no prompt para preservar a validade do golden set sob squads opacas.
 
 **Auxílio de IA:** execução e leitura do golden set, e a distinção entre o que a acurácia mede e o que ela não mede.
+
+## ADR-012 — Assistente com modelo remoto no OpenRouter, desligado por padrão
+
+**Status:** aceito.
+
+**Contexto:** o assistente de US5 responde perguntas sobre a arquitetura do projeto fundamentado na documentação indexada. O classificador de squad (ADR-005, ADR-010, ADR-011) roda em Ollama local, e a mesma escolha seria a preferida aqui. Não é possível: a máquina de desenvolvimento não comporta um modelo de geração grande o bastante para redigir resposta útil sobre trechos técnicos — o hardware local dá conta de um classificador de saída curta e enum fechado, não de redação livre com contexto de vários milhares de caracteres.
+
+**Decisão:** o assistente usa `nvidia/nemotron-3-ultra-550b-a55b:free` via OpenRouter (`ASSISTANT_BASE_URL`, `OPENROUTER_API_KEY`), num namespace de configuração `assistant_*` **separado** do `llm_*` do classificador. Os dois modelos coexistem e nunca compartilham variável. `ASSISTANT_ENABLED=false` é o padrão e é o desligamento: com ele falso, nem a busca no RAG nem o provedor são chamados, e a rota devolve `status: "disabled"`.
+
+**O que sai da máquina:** a pergunta do usuário, o histórico da conversa da sessão, e os trechos de documentação recuperados do RAG. Tudo passa por `app/services/redaction.py` **antes** de sair do processo — e-mail, CPF, telefone e nome de solicitante viram marcador estável (`[email]`, `[documento]`, `[telefone]`, `[solicitante]`). Nenhum conteúdo de ticket do Freshservice compõe o prompt nesta feature; a redação está no caminho porque a documentação indexada pode conter exemplo com dado real e porque a pergunta é texto livre do usuário.
+
+**Retenção pelo provedor:** o nível gratuito do OpenRouter **pode reter prompt para treinamento**. Isso é o custo aceito, e é o motivo de a redação ser requisito (FR-040) e não recomendação. Nenhum dado de produção, nenhum ticket real e nenhuma credencial devem entrar numa pergunta enquanto o assistente estiver ligado.
+
+**Violação de princípio registrada:** o Princípio I pede que uso de IA seja fundamentado e medido. O portão é o golden set do RAG: `ASSISTANT_ENABLED` só pode ir a `true` depois do número publicado.
+
+**Resultado medido (2026-07-29):** golden set estendido de 12 para 18 perguntas, incluindo seis do domínio do assistente. `recall@5 = 13/18 = 0,72` com `max_distance = 0,50`. As cinco falhas restantes são de recuperação, não de redação: a pergunta sobre `internal_correlation_id`, a de campos mínimos de observabilidade, a de n8n stateful, a de proteção do MCP contra instrução embutida e a de onde ficam as evidências não trazem o arquivo esperado entre os cinco primeiros. **0,72 é o número real; não foi ajustado limiar nem reescrita de pergunta para inflá-lo.** A consequência prática é conhecida e desejada: pergunta sem trecho recuperado devolve `no_grounding` e **não chega ao modelo** — o assistente cala em vez de inventar.
+
+**Consequência:** com `recall@5 = 0,72`, cerca de uma em cada quatro perguntas do conjunto de avaliação cai em `no_grounding`. Para a apresentação isso é aceitável e demonstrável; para uso contínuo, o caminho de melhoria é indexar mais documentação e revisar o chunking, não afrouxar `max_distance` — o limiar de 0,50 é o que separa evidência de ruído (ver a calibração em `rag/search/query.py`).
+
+**Auxílio de IA:** desenho do corte determinístico antes da chamada ao modelo e da regra de que `sources` acompanha toda falha do provedor, para que a recuperação bem-sucedida não seja perdida quando só a redação falha.

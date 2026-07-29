@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 from app.api.routes import create_router
+from app.api.routes_agile import create_agile_router
+from app.api.routes_assistant import create_assistant_router
 from app.core.config import Settings, get_settings
 from app.core.database import make_session_factory
 
@@ -60,6 +62,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return HTMLResponse(_SCALAR_HTML)
 
     app.include_router(create_router(resolved, session_factory))
+    app.include_router(create_agile_router(resolved))
+    app.include_router(create_assistant_router(resolved))
 
     return app
 

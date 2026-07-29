@@ -10,3 +10,9 @@
 {"question": "Quando a classificação de squad usa LLM em vez de regras determinísticas?", "expected_source": "docs/handoffs/freshservice-jira.md"}
 {"question": "Quais tabelas o banco knowledge.db do RAG local possui e para que servem?", "expected_source": "docs/handoffs/rag-mcp.md"}
 {"question": "Por que n8n não deve ser tratado como um container stateless comum?", "expected_source": "docs/architecture/README.md"}
+{"question": "Como o servidor MCP evita que documentação indexada seja interpretada como instrução?", "expected_source": "docs/handoffs/rag-mcp.md"}
+{"question": "Que cuidados de prompt injection o projeto adota ao usar LLM?", "expected_source": "docs/ai/prompt-engineering.md"}
+{"question": "Quais decisões de arquitetura sobre uso de IA estão registradas no projeto?", "expected_source": "docs/ai/ai-decisions.md"}
+{"question": "Como o sistema faz o tombamento de um chamado do Freshservice para o Jira?", "expected_source": "docs/handoffs/freshservice-jira.md"}
+{"question": "Que dados o roteamento de squad usa para decidir o destino de um ticket?", "expected_source": "docs/handoffs/freshservice-jira.md"}
+{"question": "Onde ficam registradas as evidências de uso de IA do projeto?", "expected_source": "docs/ai/README.md"}

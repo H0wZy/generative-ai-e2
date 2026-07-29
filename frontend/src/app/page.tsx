@@ -1,248 +1,175 @@
-import Link from 'next/link'
-import { ReprocessButton } from './reprocess-button'
+import Link from "next/link";
 
-const API_URL = process.env.API_URL || 'http://localhost:8000'
+import { Bars } from "@/components/charts/bars";
+import { Donut } from "@/components/charts/donut";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Stat } from "@/components/ui/stat";
+import { UnavailableState } from "@/components/ui/unavailable-state";
+import { apiFetch } from "@/lib/api";
+import type {
+  Availability,
+  Metrics,
+  SprintDashboard,
+  WorkflowListResponse,
+} from "@/lib/types";
 
-type WorkflowStatus =
-  | 'pending'
-  | 'processing'
-  | 'retry_scheduled'
-  | 'completed'
-  | 'failed'
-  | 'needs_human_review'
-
-type WorkflowItem = {
-  workflow_execution_id: string
-  status: WorkflowStatus
-  attempt_count: number
-  squad_id: string | null
-  routing_confidence: number | null
-  jira_issue_key: string | null
-  ticket: {
-    source_ticket_id: string
-    subject: string
-    category: string
-  }
-}
-
-type Metrics = {
-  received: number | null
-  pending: number | null
-  completed: number | null
-  retry_scheduled: number | null
-  failed: number | null
-  needs_human_review: number | null
-  duplicates_avoided: number | null
-}
-
-const METRIC_CARDS: { key: keyof Metrics; label: string }[] = [
-  { key: 'received', label: 'Recebidos' },
-  { key: 'completed', label: 'Concluídos' },
-  { key: 'failed', label: 'Falhas' },
-  { key: 'retry_scheduled', label: 'Retry agendado' },
-  { key: 'needs_human_review', label: 'Revisão humana' },
-  { key: 'pending', label: 'Pendentes' },
-  { key: 'duplicates_avoided', label: 'Duplicidades evitadas' },
-]
-
-const STATUS_STYLE: Record<
-  WorkflowStatus,
-  { label: string; badge: string; row: string }
-> = {
-  pending: {
-    label: 'Pendente',
-    badge: 'border-zinc-500/40 bg-zinc-500/10 text-zinc-300',
-    row: '',
-  },
-  processing: {
-    label: 'Processando',
-    badge: 'border-sky-500/40 bg-sky-500/10 text-sky-300',
-    row: '',
-  },
-  completed: {
-    label: 'Concluído',
-    badge: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-    row: '',
-  },
-  retry_scheduled: {
-    label: 'Retry agendado',
-    badge: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-    row: 'border-l-2 border-l-amber-500 bg-amber-500/5',
-  },
-  failed: {
-    label: 'Falha',
-    badge: 'border-red-500/40 bg-red-500/10 text-red-300',
-    row: 'border-l-2 border-l-red-500 bg-red-500/5',
-  },
-  needs_human_review: {
-    label: 'Revisão humana',
-    badge: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
-    row: 'border-l-2 border-l-violet-500 bg-violet-500/5',
-  },
-}
-
-const REPROCESS_ELIGIBLE: WorkflowStatus[] = ['failed', 'needs_human_review']
-
-async function getMetrics(): Promise<{
-  data: Metrics | null
-  error: string | null
-}> {
-  try {
-    const res = await fetch(`${API_URL}/api/v1/metrics`, { cache: 'no-store' })
-    if (!res.ok) {
-      return { data: null, error: `API respondeu HTTP ${res.status} em /metrics.` }
-    }
-    return { data: await res.json(), error: null }
-  } catch {
-    return {
-      data: null,
-      error: 'Não foi possível conectar à API para carregar as métricas.',
-    }
-  }
-}
-
-async function getWorkflows(): Promise<{
-  data: WorkflowItem[] | null
-  error: string | null
-}> {
-  try {
-    const res = await fetch(`${API_URL}/api/v1/workflows?limit=50`, {
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      return { data: null, error: `API respondeu HTTP ${res.status} em /workflows.` }
-    }
-    const body = await res.json()
-    return { data: body.items ?? [], error: null }
-  } catch {
-    return {
-      data: null,
-      error: 'Não foi possível conectar à API para carregar os workflows.',
-    }
-  }
-}
+// Cada indicador declara a janela a que se refere (FR-012). As contagens de
+// /metrics são acumuladas desde o início da operação — não há corte temporal
+// na origem, e inventar um seria pior que nomear o que existe.
+const ITSM_WINDOW = "acumulado";
 
 export default async function Home() {
-  const [metrics, workflows] = await Promise.all([getMetrics(), getWorkflows()])
+  const [metrics, workflows, agile] = await Promise.all([
+    apiFetch<Metrics>("/api/v1/metrics"),
+    apiFetch<WorkflowListResponse>("/api/v1/workflows?limit=200"),
+    apiFetch<Availability<SprintDashboard>>("/api/v1/agile/sprint"),
+  ]);
+
+  const open = metrics.ok ? metrics.data.pending + metrics.data.retry_scheduled : null;
+  const critical = metrics.ok
+    ? metrics.data.failed + metrics.data.needs_human_review
+    : null;
+
+  // Carga por squad a partir da fila real (FR-011). A distribuição por pessoa
+  // depende de responsável no ticket, campo que a origem ainda não traz.
+  const bySquad = new Map<string, number>();
+  if (workflows.ok) {
+    for (const item of workflows.data.items) {
+      const squad = item.squad_id ?? "sem squad";
+      bySquad.set(squad, (bySquad.get(squad) ?? 0) + 1);
+    }
+  }
+  const squadSlices = [...bySquad.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([label, value]) => ({ label, value }));
+
+  const sprint = agile.ok && agile.data.available ? agile.data.data : null;
+  const agileReason = agile.ok && !agile.data.available ? agile.data.reason : null;
+  const agileDetail = agile.ok
+    ? agile.data.available
+      ? null
+      : agile.data.detail
+    : agile.error.message;
 
   return (
-    <div className="flex flex-1 flex-col bg-zinc-950 px-6 py-10 text-zinc-100 sm:px-10">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Painel de operação
-            </h1>
-            <p className="text-sm text-zinc-400">
-              Freshservice → Jira · execuções e exceções
-            </p>
-          </div>
-          <Link
-            href="/analytics"
-            className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
-          >
-            Painel analítico
-          </Link>
-        </header>
+    <div className="flex flex-col gap-6 p-4 md:p-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-text">Como está a operação hoje</h2>
+          <p className="text-sm text-muted">
+            Freshservice e Jira na mesma tela · janela: {ITSM_WINDOW}
+          </p>
+        </div>
+        <Link
+          href="/itsm"
+          className="text-sm text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Ver fila de tickets
+        </Link>
+      </header>
 
-        <section aria-label="Métricas">
-          {metrics.error ? (
-            <p className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {metrics.error}
-            </p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {METRIC_CARDS.filter(({ key }) => metrics.data?.[key] !== null).map(
-                ({ key, label }) => (
-                  <div
-                    key={key}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3"
-                  >
-                    <p className="text-xs text-zinc-400">{label}</p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums">
-                      {metrics.data?.[key]}
-                    </p>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-        </section>
+      {/* FR-013: a indisponibilidade de uma origem não impede as outras. */}
+      <section
+        aria-label="Indicadores de ITSM"
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        <Stat
+          label="Incidentes abertos"
+          value={open ?? "indisponível"}
+          hint={metrics.ok ? ITSM_WINDOW : metrics.error.message}
+        />
+        <Stat
+          label="Itens críticos"
+          value={critical ?? "indisponível"}
+          hint={metrics.ok ? `falhas e revisão humana · ${ITSM_WINDOW}` : metrics.error.message}
+        />
+        <Stat
+          label="Concluídos"
+          value={metrics.ok ? metrics.data.completed : "indisponível"}
+          hint={metrics.ok ? ITSM_WINDOW : metrics.error.message}
+        />
+        {/* Nenhum campo de prazo chega do Freshservice hoje. Declarar
+            indisponível é mais honesto que derivar número não auditável. */}
+        <Stat
+          label="Cumprimento de SLA"
+          value="indisponível"
+          hint="sem prazo conhecido na origem"
+        />
+      </section>
 
-        <section aria-label="Workflows">
-          {workflows.error ? (
-            <p className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {workflows.error}
-            </p>
-          ) : workflows.data && workflows.data.length === 0 ? (
-            <p className="rounded border border-zinc-800 bg-zinc-900 px-4 py-6 text-center text-sm text-zinc-400">
-              Nenhum workflow encontrado.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-zinc-800">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-zinc-800 bg-zinc-900 text-xs uppercase text-zinc-400">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Ticket</th>
-                    <th className="px-3 py-2 font-medium">Assunto</th>
-                    <th className="px-3 py-2 font-medium">Categoria</th>
-                    <th className="px-3 py-2 font-medium">Squad</th>
-                    <th className="px-3 py-2 font-medium">Confiança</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">Tentativas</th>
-                    <th className="px-3 py-2 font-medium">Issue Jira</th>
-                    <th className="px-3 py-2 font-medium">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
-                  {workflows.data?.map((item) => {
-                    const style = STATUS_STYLE[item.status]
-                    return (
-                      <tr key={item.workflow_execution_id} className={style.row}>
-                        <td className="px-3 py-2 font-mono text-xs text-zinc-300">
-                          {item.ticket.source_ticket_id}
-                        </td>
-                        <td className="px-3 py-2 text-zinc-200">
-                          {item.ticket.subject}
-                        </td>
-                        <td className="px-3 py-2 text-zinc-400">
-                          {item.ticket.category}
-                        </td>
-                        <td className="px-3 py-2 text-zinc-400">
-                          {item.squad_id ?? '—'}
-                        </td>
-                        <td className="px-3 py-2 tabular-nums text-zinc-400">
-                          {item.routing_confidence !== null
-                            ? `${Math.round(item.routing_confidence * 100)}%`
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${style.badge}`}
-                          >
-                            {style.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 tabular-nums text-zinc-400">
-                          {item.attempt_count}
-                        </td>
-                        <td className="px-3 py-2 font-mono text-xs text-zinc-300">
-                          {item.jira_issue_key ?? '—'}
-                        </td>
-                        <td className="px-3 py-2">
-                          {REPROCESS_ELIGIBLE.includes(item.status) && (
-                            <ReprocessButton id={item.workflow_execution_id} />
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Progresso do sprint">
+          {sprint?.sprint ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm text-text">{sprint.sprint.name}</p>
+                <p className="text-xs text-muted">
+                  {sprint.sprint.days_left} dia(s) restante(s)
+                </p>
+              </div>
+              <p className="text-2xl font-semibold tabular-nums text-text">
+                {sprint.sprint.completed_points} / {sprint.sprint.committed_points}
+                <span className="ml-1 text-sm font-normal text-muted">pontos</span>
+              </p>
+              <p className="text-xs text-muted">
+                {sprint.sprint.start_date?.slice(0, 10)} a {sprint.sprint.end_date?.slice(0, 10)}
+              </p>
             </div>
+          ) : sprint ? (
+            <EmptyState title="Nenhum sprint ativo" hint="O board não tem sprint em andamento." />
+          ) : (
+            <UnavailableState reason={agileReason ?? "unavailable"} detail={agileDetail} />
           )}
-        </section>
+        </Card>
+
+        <Card title="Velocidade das últimas iterações">
+          {sprint && sprint.velocity.length > 0 ? (
+            <Bars
+              label="Pontos comprometidos e concluídos por sprint"
+              seriesLabels={["Comprometido", "Concluído"]}
+              groups={sprint.velocity.map((point) => ({
+                label: point.sprint_name,
+                values: [point.committed, point.completed],
+              }))}
+            />
+          ) : sprint ? (
+            <EmptyState
+              title="Sem histórico de velocidade"
+              hint="Nenhum sprint encerrado ainda neste board."
+            />
+          ) : (
+            <UnavailableState reason={agileReason ?? "unavailable"} detail={agileDetail} />
+          )}
+        </Card>
+
+        <Card title="Carga por squad">
+          {workflows.ok && squadSlices.length > 0 ? (
+            <Donut label="Distribuição de execuções por squad" slices={squadSlices} />
+          ) : workflows.ok ? (
+            <EmptyState title="Nenhuma execução na fila" />
+          ) : (
+            <UnavailableState reason="unavailable" detail={workflows.error.message} />
+          )}
+        </Card>
+
+        <Card title="Volume por status">
+          {metrics.ok ? (
+            <Donut
+              label="Execuções por status"
+              slices={[
+                { label: "Concluídos", value: metrics.data.completed },
+                { label: "Pendentes", value: metrics.data.pending },
+                { label: "Retry", value: metrics.data.retry_scheduled },
+                { label: "Exceções", value: critical ?? 0 },
+              ]}
+            />
+          ) : (
+            <UnavailableState reason="unavailable" detail={metrics.error.message} />
+          )}
+        </Card>
       </div>
     </div>
-  )
+  );
 }

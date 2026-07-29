@@ -16,8 +16,11 @@ from app.domain.models import (
     IngestResponse,
     MetricsResponse,
     ProcessResult,
+    TicketDetail,
     TicketIngestRequest,
     TicketRecord,
+    TimelineEvent,
+    WorkflowDetail,
     WorkflowListItem,
     WorkflowListResponse,
     WorkflowTicketSummary,
@@ -31,6 +34,40 @@ from app.repositories.schema import (
     TicketRow,
     WorkflowExecutionRow,
 )
+
+
+# Mapa fechado de evento de auditoria: rótulo em português e chaves que podem
+# sair na timeline. `details_json` NUNCA é devolvido inteiro — se algum
+# escritor de log passar a incluir assunto ou descrição do ticket, a lista
+# branca impede o vazamento (Princípio II). Tipo desconhecido devolve {}.
+_TIMELINE_EVENTS: dict[str, tuple[str, frozenset[str]]] = {
+    "ticket.ingested": ("Ticket recebido", frozenset({"source_ticket_id", "event_id"})),
+    "jira.issue_linked": ("Issue criada no Jira", frozenset({"jira_issue_key"})),
+    "routing.review_required": ("Enviado para revisão humana", frozenset({"reason"})),
+    "jira.retry_scheduled": ("Nova tentativa agendada", frozenset({"error_category"})),
+    "jira.failed": ("Falha na criação da issue", frozenset({"error_category"})),
+    "workflow.reprocess_requested": ("Reprocessamento solicitado", frozenset()),
+}
+
+REPROCESS_ELIGIBLE_STATUSES = ("failed", "needs_human_review")
+
+
+def _timeline_event(row: AuditLogRow) -> TimelineEvent:
+    summary, allowed = _TIMELINE_EVENTS.get(row.event_type, (row.event_type, frozenset()))
+    detail: dict[str, object] = {}
+    if allowed:
+        try:
+            raw = json.loads(row.details_json)
+        except (ValueError, TypeError):
+            raw = {}
+        if isinstance(raw, dict):
+            detail = {k: v for k, v in raw.items() if k in allowed}
+    return TimelineEvent(
+        at=row.created_at,
+        event_type=row.event_type,
+        summary=summary,
+        detail=detail,
+    )
 
 
 class WorkflowRepository:
@@ -339,21 +376,38 @@ class WorkflowRepository:
     # Dashboard — list, metrics, reprocess
     # ------------------------------------------------------------------
 
-    def list_workflows(self, status: str | None, limit: int) -> WorkflowListResponse:
+    def list_workflows(
+        self,
+        status: str | None,
+        limit: int,
+        offset: int = 0,
+        priority: str | None = None,
+        squad: str | None = None,
+        q: str | None = None,
+    ) -> WorkflowListResponse:
         filters = [WorkflowExecutionRow.status == status] if status is not None else []
+        if priority is not None:
+            filters.append(TicketRow.priority == priority)
+        if squad is not None:
+            filters.append(WorkflowExecutionRow.squad_id == squad)
+        if q:
+            needle = f"%{q}%"
+            filters.append(
+                TicketRow.subject.ilike(needle) | TicketRow.source_ticket_id.ilike(needle)
+            )
 
-        total = self._session.execute(
-            select(func.count()).select_from(WorkflowExecutionRow).where(*filters)
-        ).scalar_one()
-
-        stmt = (
+        base = (
             select(WorkflowExecutionRow, TicketRow, JiraIssueLinkRow)
             .join(TicketRow, TicketRow.id == WorkflowExecutionRow.ticket_id)
             .outerjoin(JiraIssueLinkRow, JiraIssueLinkRow.ticket_id == TicketRow.id)
             .where(*filters)
-            .order_by(WorkflowExecutionRow.updated_at.desc())
-            .limit(limit)
         )
+
+        total = self._session.execute(
+            select(func.count()).select_from(base.subquery())
+        ).scalar_one()
+
+        stmt = base.order_by(WorkflowExecutionRow.updated_at.desc()).limit(limit).offset(offset)
         rows = self._session.execute(stmt).all()
 
         items = [
@@ -369,6 +423,7 @@ class WorkflowRepository:
                 last_error=workflow.last_error,
                 jira_issue_key=link.jira_issue_key if link else None,
                 link_origin=link.link_origin if link else None,  # type: ignore[arg-type]
+                reprocess_eligible=workflow.status in REPROCESS_ELIGIBLE_STATUSES,
                 ticket=WorkflowTicketSummary(
                     source_ticket_id=ticket.source_ticket_id,
                     subject=ticket.subject,
@@ -380,6 +435,69 @@ class WorkflowRepository:
             for workflow, ticket, link in rows
         ]
         return WorkflowListResponse(items=items, total=total)
+
+    def get_workflow_detail(
+        self, workflow_execution_id: uuid.UUID, jira_base_url: str | None = None
+    ) -> WorkflowDetail | None:
+        row = self._session.execute(
+            select(WorkflowExecutionRow, TicketRow, JiraIssueLinkRow)
+            .join(TicketRow, TicketRow.id == WorkflowExecutionRow.ticket_id)
+            .outerjoin(JiraIssueLinkRow, JiraIssueLinkRow.ticket_id == TicketRow.id)
+            .where(WorkflowExecutionRow.id == workflow_execution_id)
+        ).first()
+        if row is None:
+            return None
+        workflow, ticket, link = row
+
+        routing = self._session.execute(
+            select(RoutingDecisionRow)
+            .where(RoutingDecisionRow.workflow_execution_id == workflow.id)
+            .order_by(RoutingDecisionRow.created_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+
+        audit_rows = self._session.execute(
+            select(AuditLogRow)
+            .where(AuditLogRow.workflow_execution_id == workflow.id)
+            .order_by(AuditLogRow.created_at.asc())
+        ).scalars().all()
+
+        issue_key = link.jira_issue_key if link else None
+        issue_url = (
+            f"{jira_base_url.rstrip('/')}/browse/{issue_key}"
+            if issue_key and jira_base_url
+            else None
+        )
+
+        return WorkflowDetail(
+            workflow_execution_id=workflow.id,
+            internal_correlation_id=workflow.internal_correlation_id,
+            status=workflow.status,  # type: ignore[arg-type]
+            attempt_count=workflow.attempt_count,
+            squad_id=workflow.squad_id,
+            routing_confidence=workflow.routing_confidence,
+            routing_rule_version=workflow.routing_rule_version,
+            routing_reason=routing.reason if routing else None,
+            needs_human_review=workflow.needs_human_review,
+            last_error=workflow.last_error,
+            next_attempt_at=workflow.next_attempt_at,
+            jira_issue_key=issue_key,
+            jira_issue_url=issue_url,
+            link_origin=link.link_origin if link else None,  # type: ignore[arg-type]
+            ticket=TicketDetail(
+                source_ticket_id=ticket.source_ticket_id,
+                subject=ticket.subject,
+                description=ticket.description,
+                category=ticket.category,
+                priority=ticket.priority,
+                requester=ticket.requester,
+                source_system=ticket.source_system,
+            ),
+            timeline=[_timeline_event(r) for r in audit_rows],
+            created_at=workflow.created_at,
+            updated_at=workflow.updated_at,
+            reprocess_eligible=workflow.status in REPROCESS_ELIGIBLE_STATUSES,
+        )
 
     def get_metrics(self) -> MetricsResponse:
         counts_by_status = dict(

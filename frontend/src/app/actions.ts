@@ -64,7 +64,7 @@ export async function reprocessWorkflow(
   }
 
   const body = await res.json().catch(() => null)
-  revalidatePath('/')
+  revalidatePath('/itsm')
   return {
     status: 'success',
     message: `Reprocessamento agendado. Correlation id: ${body?.workflow_execution_id ?? id}`,

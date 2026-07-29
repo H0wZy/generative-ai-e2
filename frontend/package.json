@@ -3,14 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "banner": "node scripts/letters.ts",
+    "predev": "node scripts/letters.ts || exit 0",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-    "figlet": "^1.11.3",
-    "gradient-string": "^3.0.0",
     "next": "16.2.11",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -23,6 +23,8 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "figlet": "^1.11.4",
+    "gradient-string": "^3.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

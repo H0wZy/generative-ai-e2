@@ -226,6 +226,39 @@ degradação para revisão humana em qualquer falha — Ollama fora do ar, JSON
 inválido, squad fora do enum ou confiança baixa nunca viram criação automática
 de issue.
 
+**Situação de SLA não existe na origem.** A fila de tickets tem coluna de SLA
+porque o requisito pede, mas nenhum prazo chega do Freshservice — não há campo
+de deadline no schema nem no payload. A coluna mostra `—` com o rótulo "sem
+prazo conhecido na origem", e o indicador da Home é marcado como indisponível.
+Derivar um prazo a partir de `next_attempt_at` seria inventar número que
+ninguém consegue auditar numa apresentação.
+
+**Responsável sem imagem.** O avatar do Jira exige requisição autenticada, o
+que obrigaria um proxy no backend só para servir imagem. As iniciais resolvem a
+identificação; `avatar_url` é sempre `null` por decisão, não por falta.
+
+**O workspace Agile depende de credencial viva.** Sprint, backlog e quadros são
+projeção do Jira em tempo de requisição — não há cópia no Postgres. Sem
+`JIRA_BOARD_ID` ou com token recusado, as telas renderizam estado nomeado
+(`not_configured`, `unauthorized`, `forbidden`, `unavailable`, `rate_limited`)
+em vez de erro; nada de Agile funciona offline, e isso é deliberado: cache de
+sprint mentiria numa demonstração ao vivo.
+
+**O board de demonstração ainda está vazio.** Medido em 2026-07-29 contra o
+board `FRESH`: nenhuma issue estimada em `customfield_10016` (todos os pontos
+vêm `null`), `goal` do sprint vazio, nenhum sprint encerrado (gráfico de
+velocidade sem série) e `constraintType: "none"` sem `max` em coluna alguma
+(limite de WIP não tem o que exibir). O código trata todos esses casos com
+estado vazio nomeado. Encher o board é trabalho de dado no Jira, não de código.
+
+**Assistente desligado por padrão (`ASSISTANT_ENABLED=false`).** Roda em modelo
+remoto no OpenRouter porque a máquina local não comporta modelo de geração
+grande (ADR-012). `recall@5 = 0,72` medido em 2026-07-29 sobre 18 perguntas —
+cerca de uma em cada quatro cai em `no_grounding` e **não chega ao modelo**. O
+nível gratuito do provedor pode reter prompt para treino; por isso a redação de
+PII acontece antes de o texto sair do processo, e nenhum dado de produção deve
+entrar numa pergunta.
+
 **Sem paginação por cursor.** A listagem aplica apenas `LIMIT`, com teto de 200.
 Adequado ao volume sintético da demonstração.
 
