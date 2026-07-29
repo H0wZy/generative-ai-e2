@@ -25,11 +25,11 @@ function Select({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-xs text-zinc-500">{label}</span>
+      <span className="text-xs text-muted">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(field, event.target.value)}
-        className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200"
+        className="min-h-9 rounded-md border border-divider bg-surface px-2 text-sm text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         <option value="">Todos</option>
         {options.map((option) => (
@@ -78,8 +78,8 @@ export function FilterBar({
 
   return (
     <div className="flex flex-col gap-3">
-      <details open className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <summary className="cursor-pointer text-sm font-medium text-zinc-300">
+      <details open className="rounded-lg bg-surface p-4 shadow-sm">
+        <summary className="cursor-pointer text-sm font-medium text-text">
           Freshservice — chamado ({FRESHSERVICE_FIELDS.length} campos)
         </summary>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -96,8 +96,8 @@ export function FilterBar({
         </div>
       </details>
 
-      <details className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-        <summary className="cursor-pointer text-sm font-medium text-zinc-300">
+      <details className="rounded-lg bg-surface p-4 shadow-sm">
+        <summary className="cursor-pointer text-sm font-medium text-text">
           Jira — card ({JIRA_FIELDS.length} campos)
         </summary>
         <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -117,13 +117,13 @@ export function FilterBar({
       <div className="flex flex-wrap items-end gap-4">
         {showPeriodicidade && (
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-muted">
               Periodicidade (agrupamento, não filtro)
             </span>
             <select
               value={params.get('periodicidade') ?? 'mes'}
               onChange={(event) => setParam('periodicidade', event.target.value)}
-              className="rounded border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-200"
+              className="min-h-9 rounded-md border border-divider bg-surface px-2 text-sm text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
               {PERIODICIDADES.map(({ value, label }) => (
                 <option key={value} value={value}>
@@ -142,13 +142,13 @@ export function FilterBar({
             for (const field of ALL_FILTER_FIELDS) next.delete(field)
             router.replace(`?${next.toString()}`)
           }}
-          className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex min-h-9 items-center rounded-md bg-neutral-800 px-3 text-sm font-medium text-neutral-100 transition-colors hover:bg-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-50"
         >
           Limpar filtros{activeCount > 0 ? ` (${activeCount})` : ''}
         </button>
       </div>
 
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-muted">
         As opções estreitam dentro de cada base, não entre elas: ~73% dos
         chamados não têm card, e uma cascata cruzada os faria sumir do dropdown.
       </p>

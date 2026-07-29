@@ -10,31 +10,22 @@ import os
 from pathlib import Path
 
 import pytest
-from fastapi import APIRouter, Depends
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.routes import create_router
+from app.api.routes_agile import create_agile_router
+from app.api.routes_assistant import create_assistant_router
 from app.core.config import Settings
 from app.core.database import make_engine
-from app.domain.models import (
-    IngestResponse,
-    MetricsResponse,
-    ReprocessResponse,
-    TicketIngestRequest,
-    WorkflowListResponse,
-    WorkflowStatus,
-)
 from app.integrations.jira import FakeJiraClient
-from app.main import create_app
+from app.integrations.jira_agile import FakeJiraAgileClient
+from app.integrations.openrouter import FakeAssistantClient
+from app.integrations.rag_search import FakeRagSearchClient
 from app.repositories.schema import Base
 from app.services.analytics.tables import ANALYTICS_SCHEMA, analytics_metadata
-from app.repositories.workflows import WorkflowRepository
-from app.services.ingestion import IngestionService
-from app.services.processing import ProcessingService
-from fastapi import HTTPException, Query
-from fastapi.responses import JSONResponse
-from uuid import UUID
 
 
 # ---------------------------------------------------------------------------
@@ -133,85 +124,50 @@ def fake_jira() -> FakeJiraClient:
     return FakeJiraClient()
 
 
+@pytest.fixture()
+def fake_agile() -> FakeJiraAgileClient:
+    return FakeJiraAgileClient()
+
+
+@pytest.fixture()
+def fake_rag() -> FakeRagSearchClient:
+    return FakeRagSearchClient()
+
+
+@pytest.fixture()
+def fake_assistant() -> FakeAssistantClient:
+    return FakeAssistantClient()
+
+
 # ---------------------------------------------------------------------------
 # HTTP test client
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
-def client(test_settings: Settings, session_factory: sessionmaker[Session], fake_jira: FakeJiraClient) -> TestClient:
-    """TestClient with FakeJiraClient and isolated test database."""
-    app = create_app(test_settings)
+def client(
+    test_settings: Settings,
+    session_factory: sessionmaker[Session],
+    fake_jira: FakeJiraClient,
+    fake_agile: FakeJiraAgileClient,
+) -> TestClient:
+    """TestClient on the production router, with the Jira client faked.
 
-    # Clear automatically registered routes and wire our own with test overrides
-    app.router.routes.clear()
+    Nada de rota redeclarada aqui: a suíte exercita exatamente o que envia.
+    """
+    app = FastAPI()
 
     @app.get("/health", tags=["ops"])
     def _health() -> dict[str, str]:
         return {"status": "ok"}
 
-    router = APIRouter(prefix="/api/v1", tags=["tickets"])
-
-    def _get_session():
-        session = session_factory()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    @router.post("/tickets/ingest", status_code=202, response_model=IngestResponse)
-    def _ingest(payload: TicketIngestRequest, session: Session = Depends(_get_session)):
-        return IngestionService(session).ingest(payload)
-
-    @router.post("/workflows/process-next", status_code=200)
-    def _process(session: Session = Depends(_get_session)):
-        result = ProcessingService(session, fake_jira, test_settings).process_next()
-        if result is None:
-            return {"status": "queue_empty"}
-        return {
-            "workflow_execution_id": str(result.workflow_execution_id),
-            "status": result.status,
-            "attempt_count": result.attempt_count,
-            "jira_issue_key": result.jira_issue_key,
-        }
-
-    @router.get("/workflows", response_model=WorkflowListResponse)
-    def _list_workflows(
-        status_filter: WorkflowStatus | None = Query(default=None, alias="status"),
-        limit: int = Query(default=50, ge=1, le=200),
-        session: Session = Depends(_get_session),
-    ):
-        return WorkflowRepository(session).list_workflows(status=status_filter, limit=limit)
-
-    @router.get("/metrics", response_model=MetricsResponse)
-    def _metrics(session: Session = Depends(_get_session)):
-        return WorkflowRepository(session).get_metrics()
-
-    @router.post("/workflows/{workflow_execution_id}/reprocess", response_model=ReprocessResponse)
-    def _reprocess(workflow_execution_id: UUID, session: Session = Depends(_get_session)):
-        outcome = WorkflowRepository(session).reprocess_workflow(workflow_execution_id)
-        if not outcome.found:
-            raise HTTPException(status_code=404, detail="workflow not found")
-        response = ReprocessResponse(
-            workflow_execution_id=workflow_execution_id,
-            status=outcome.status,  # type: ignore[arg-type]
-            jira_issue_key=outcome.jira_issue_key,
-            reprocessed=not outcome.conflict,
-            reason=outcome.reason,  # type: ignore[arg-type]
-        )
-        if outcome.conflict:
-            return JSONResponse(status_code=409, content=response.model_dump(mode="json"))
-        return response
-
-    # Analytics routes come straight from the production router — no test
-    # override — so the upload flow is exercised as it actually ships.
-    from app.api.routes import create_router as _create_router
-
-    production = _create_router(test_settings, session_factory)
-    for route in production.routes:
-        if "/analytics" in getattr(route, "path", ""):
-            router.routes.append(route)
-
+    router = create_router(test_settings, session_factory)
     app.include_router(router)
+    app.dependency_overrides[router.get_jira_client] = lambda: fake_jira
+
+    agile = create_agile_router(test_settings)
+    app.include_router(agile)
+    app.dependency_overrides[agile.get_client] = lambda: fake_agile
+
     return TestClient(app)
 
 

@@ -1,26 +1,160 @@
 @import "tailwindcss";
 
+/* Tokens Nocturne (tema escuro = padrão). Fonte: specs/002-unified-itsm-agile-ui/research.md R9 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-accent-2: #a7a1db;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  --color-accent-2-100: #f5f4ff;
+  --color-accent-2-200: #e7e5fe;
+  --color-accent-2-300: #d2cefd;
+  --color-accent-2-400: #b5afe8;
+  --color-accent-2-500: #9690c9;
+  --color-accent-2-600: #7972a9;
+  --color-accent-2-700: #5c5783;
+  --color-accent-2-800: #423e5d;
+  --color-accent-2-900: #2b293a;
+
+  /* Tokens semânticos — viram com o tema. Existem porque um degrau fixo da
+     rampa não passa AA nos dois temas: neutral-600 dá 4.31:1 sobre branco e
+     3.52:1 sobre a superfície escura; accent-400 dá 1.86:1 sobre o fundo
+     claro. Medido, não estimado (FR-008, SC-005). */
+  --color-muted: var(--color-neutral-500); /* 5.25:1 na superfície escura */
+  --color-link: var(--color-accent-300); /* 10.1:1 */
+  --color-focus: var(--color-accent-400); /* 8.6:1 sobre o fundo escuro */
+  --color-primary: var(--color-accent-700); /* neutral-100 sobre ele: 6.2:1 */
+  --color-primary-hover: var(--color-accent-800); /* 9.4:1 */
+  /* Superfície levemente elevada (hover de item, trilho, esqueleto). Precisa
+     virar com o tema: a rampa neutral não vira, e um bloco escuro sob texto
+     escuro no tema claro dá 2,67:1 — medido no navegador. */
+  --color-elevated: var(--color-neutral-900);
+
+  --space-1: 2.8px;
+  --space-2: 5.6px;
+  --space-3: 8.4px;
+  --space-4: 11.2px;
+  --space-6: 16.8px;
+  --space-8: 22.4px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 0 0 1px #3f424d;
+  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+}
+
+/* Tema claro. Divergência consciente do protótipo (FR-008, research.md R9):
+   texto secundário e ícone inativo usam --color-neutral-600 (~4.6:1 sobre
+   branco) ou mais escuro em vez de --color-neutral-400 (~2.2:1, reprova AA). */
+:root[data-theme="light"] {
+  --color-bg: #f3f3f8;
+  --color-surface: #ffffff;
+  --color-text: #191a24;
+  --color-divider: color-mix(in srgb, #191a24 12%, transparent);
+
+  --color-muted: var(--color-neutral-700); /* 6.55:1 sobre branco */
+  --color-link: var(--color-accent-700); /* 6.77:1 */
+  --color-focus: var(--color-accent-700); /* 6.12:1 sobre o fundo claro */
+  --color-elevated: var(--color-neutral-200);
+
+  --shadow-sm: 0 1px 2px rgba(30, 30, 50, 0.06), 0 0 0 1px rgba(30, 30, 50, 0.08);
+  --shadow-md: 0 2px 4px rgba(30, 30, 50, 0.05), 0 10px 24px rgba(30, 30, 50, 0.10),
+    0 0 0 1px rgba(30, 30, 50, 0.06);
+  --shadow-lg: 0 24px 48px rgba(30, 30, 50, 0.18), 0 0 0 1px rgba(30, 30, 50, 0.08);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-text: var(--color-text);
+  --color-divider: var(--color-divider);
+  --color-muted: var(--color-muted);
+  --color-link: var(--color-link);
+  --color-focus: var(--color-focus);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-elevated: var(--color-elevated);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-800: var(--color-accent-800);
+  --color-accent-900: var(--color-accent-900);
+
+  --color-accent-2-100: var(--color-accent-2-100);
+  --color-accent-2-200: var(--color-accent-2-200);
+  --color-accent-2-300: var(--color-accent-2-300);
+  --color-accent-2-400: var(--color-accent-2-400);
+  --color-accent-2-500: var(--color-accent-2-500);
+  --color-accent-2-600: var(--color-accent-2-600);
+  --color-accent-2-700: var(--color-accent-2-700);
+  --color-accent-2-800: var(--color-accent-2-800);
+  --color-accent-2-900: var(--color-accent-2-900);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-inter);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* FR-008: respeita preferência de movimento reduzido em todo o app. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

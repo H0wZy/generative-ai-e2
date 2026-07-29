@@ -22,11 +22,37 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
+    # Credenciais vêm do arquivo, nunca do compose — o compose é versionado.
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
+      # Depois do env_file de propósito: dentro da rede do compose o host do
+      # banco é `postgres`, não o localhost do .env de desenvolvimento.
       DATABASE_URL: postgresql://genai_e2:${POSTGRES_PASSWORD:-genai_e2_dev}@postgres:5432/genai_e2
+      RAG_SEARCH_URL: http://rag-search:8100
     depends_on:
       postgres:
         condition: service_healthy
+    # Sem depends_on em rag-search de propósito: a imagem do RAG carrega torch
+    # e o modelo de embedding, e a API não precisa dela para subir — busca
+    # indisponível vira `no_grounding`, não falha de boot.
+
+  # Busca semântica do RAG. Consumido só pela rede interna — sem porta
+  # publicada de propósito: o navegador nunca fala com este serviço.
+  rag-search:
+    build:
+      context: .
+      dockerfile: rag/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./rag/data:/app/rag/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8100/health').status == 200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:

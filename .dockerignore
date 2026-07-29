@@ -1,0 +1,37 @@
+# Segredos — nunca entram na imagem
+.env
+*.env
+!.env.example
+
+# Diretórios que não pertencem à imagem do rag
+backend/
+frontend/
+evidence/
+specs/
+.specify/
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Git e IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.log

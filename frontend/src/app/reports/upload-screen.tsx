@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import { useActionState, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Tag, type TagTone } from '@/components/ui/tag'
 import {
   commitUpload,
   detectUpload,
@@ -18,13 +21,13 @@ const KIND_LABEL: Record<DetectedFile['kind'], string> = {
   too_large: 'Acima do limite de 20 MB — será ignorado',
 }
 
-const KIND_STYLE: Record<DetectedFile['kind'], string> = {
-  fs_abertos: 'border-sky-500/40 bg-sky-500/10 text-sky-300',
-  fs_fechados: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-  jira_cards: 'border-violet-500/40 bg-violet-500/10 text-violet-300',
-  unknown: 'border-zinc-600/40 bg-zinc-600/10 text-zinc-400',
-  unreadable: 'border-red-500/40 bg-red-500/10 text-red-300',
-  too_large: 'border-red-500/40 bg-red-500/10 text-red-300',
+const KIND_TONE: Record<DetectedFile['kind'], TagTone> = {
+  fs_abertos: 'accent',
+  fs_fechados: 'success',
+  jira_cards: 'accent',
+  unknown: 'neutral',
+  unreadable: 'danger',
+  too_large: 'danger',
 }
 
 const IGNORED: DetectedFile['kind'][] = ['unknown', 'unreadable', 'too_large']
@@ -49,10 +52,10 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="text-xl font-semibold text-text">
           {hasData ? 'Carregar novos dados' : 'Dados ainda não carregados, deseja carregar?'}
         </h2>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-muted">
           Exportações do Power BI: chamados em aberto, chamados fechados e cards
           do Jira. O tipo de cada arquivo é reconhecido pelas colunas do
           cabeçalho, não pelo nome — pode enviar em qualquer ordem.
@@ -62,7 +65,7 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
       <form
         ref={formRef}
         action={previewAction}
-        className="flex flex-col gap-4 rounded-lg border border-zinc-800 bg-zinc-900 p-5"
+        className="flex flex-col gap-4 rounded-lg bg-surface p-4 shadow-sm"
       >
         <input
           type="file"
@@ -70,22 +73,18 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
           multiple
           accept=".xlsx,.csv"
           onChange={(event) => setFileCount(event.target.files?.length ?? 0)}
-          className="text-sm text-zinc-300 file:mr-3 file:rounded file:border file:border-zinc-700 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-sm file:text-zinc-200 hover:file:bg-zinc-700"
+          className="text-sm text-text file:mr-3 file:min-h-9 file:rounded-md file:border-0 file:bg-neutral-800 file:px-3 file:text-sm file:font-medium file:text-neutral-100 hover:file:bg-neutral-700"
         />
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={previewPending || fileCount === 0}
-            className="rounded border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-sm font-medium text-sky-300 transition-colors hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={previewPending || fileCount === 0}>
             {previewPending ? 'Analisando…' : 'Pré-visualizar'}
-          </button>
+          </Button>
           {/* Only on the voluntary path: there is nowhere to go back to on
               the mandatory first-visit screen. */}
           {hasData && (
             <Link
-              href="/analytics"
-              className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-400 transition-colors hover:bg-zinc-800"
+              href="/reports"
+              className="inline-flex min-h-9 items-center rounded-md px-3 text-sm text-muted transition-colors hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
               Cancelar e voltar
             </Link>
@@ -94,18 +93,18 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
       </form>
 
       {preview?.phase === 'error' && (
-        <p className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-surface px-4 py-3 text-sm text-text shadow-sm">
           {preview.message}
         </p>
       )}
 
       {showPreview && (
-        <div className="flex flex-col gap-4 rounded-lg border border-zinc-800 bg-zinc-900 p-5">
+        <div className="flex flex-col gap-4 rounded-lg bg-surface p-4 shadow-sm">
           <div>
-            <h3 className="text-sm font-semibold text-zinc-200">
+            <h3 className="text-sm font-semibold text-text">
               Pré-visualização — nada foi gravado ainda
             </h3>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-muted">
               A contagem já é de linhas válidas: é exatamente o que será
               gravado, não o total bruto do arquivo.
             </p>
@@ -115,19 +114,15 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
             {preview.files.map((file) => (
               <li
                 key={file.filename}
-                className="flex flex-wrap items-center justify-between gap-2 rounded border border-zinc-800 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-divider px-3 py-2"
               >
-                <span className="font-mono text-xs text-zinc-300">
+                <span className="font-mono text-xs text-muted">
                   {file.filename}
                 </span>
                 <span className="flex items-center gap-3">
-                  <span
-                    className={`rounded border px-2 py-0.5 text-xs font-medium ${KIND_STYLE[file.kind]}`}
-                  >
-                    {KIND_LABEL[file.kind]}
-                  </span>
+                  <Tag tone={KIND_TONE[file.kind]}>{KIND_LABEL[file.kind]}</Tag>
                   {!IGNORED.includes(file.kind) && (
-                    <span className="tabular-nums text-xs text-zinc-400">
+                    <span className="tabular-nums text-xs text-muted">
                       {file.row_count} linhas
                     </span>
                   )}
@@ -149,14 +144,10 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
               commitAction(formData)
             }}
           >
-            <button
-              type="submit"
-              disabled={commitPending}
-              className="rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <Button type="submit" variant="primary" disabled={commitPending}>
               {commitPending ? 'Gravando…' : 'Confirmar e gravar'}
-            </button>
-            <p className="mt-2 text-xs text-zinc-500">
+            </Button>
+            <p className="mt-2 text-xs text-muted">
               A carga sempre mescla, nunca substitui. Reenviar os mesmos
               arquivos atualiza, não duplica.
             </p>
@@ -165,13 +156,13 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
       )}
 
       {commit?.phase === 'committed' && (
-        <div className="rounded border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+        <div role="status" className="rounded-md bg-surface px-4 py-3 text-sm text-text shadow-sm">
           <p>
             {commit.inserted} registro(s) inserido(s), {commit.updated}{' '}
             atualizado(s).
           </p>
           {commit.skipped.length > 0 && (
-            <p className="mt-1 text-amber-300">
+            <p className="mt-1 text-muted">
               Ignorados: {commit.skipped.join(', ')}
             </p>
           )}
@@ -179,7 +170,7 @@ export function UploadScreen({ hasData }: { hasData: boolean }) {
       )}
 
       {commit?.phase === 'error' && (
-        <p className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        <p role="alert" className="rounded-md bg-surface px-4 py-3 text-sm text-text shadow-sm">
           {commit.message}
         </p>
       )}

@@ -79,6 +79,7 @@ class WorkflowListItem(BaseModel):
     last_error: str | None
     jira_issue_key: str | None
     link_origin: Literal["deterministic", "best_effort"] | None = None
+    reprocess_eligible: bool
     ticket: WorkflowTicketSummary
     updated_at: datetime
 
@@ -86,6 +87,60 @@ class WorkflowListItem(BaseModel):
 class WorkflowListResponse(BaseModel):
     items: list[WorkflowListItem]
     total: int
+
+
+class TicketDetail(BaseModel):
+    """Ticket completo do detalhe.
+
+    `subject` e `description` são conteúdo externo não confiável (Princípio II):
+    são renderizados como texto, nunca como HTML, e nunca entram em log, erro
+    ou evidência.
+    """
+
+    source_ticket_id: str
+    subject: str
+    description: str
+    category: str | None
+    priority: str
+    requester: str | None
+    source_system: str
+
+
+class TimelineEvent(BaseModel):
+    at: datetime
+    event_type: str
+    summary: str
+    detail: dict[str, object]
+
+
+class SlaState(BaseModel):
+    """Derivado, não persistido — não há coluna de prazo no schema."""
+
+    available: bool
+    minutes_left: int | None
+    tone: Literal["ok", "warning", "critical", "unknown"]
+
+
+class WorkflowDetail(BaseModel):
+    workflow_execution_id: UUID
+    internal_correlation_id: UUID
+    status: WorkflowStatus
+    attempt_count: int
+    squad_id: str | None
+    routing_confidence: float | None
+    routing_rule_version: str | None
+    routing_reason: str | None
+    needs_human_review: bool
+    last_error: str | None
+    next_attempt_at: datetime | None
+    jira_issue_key: str | None
+    jira_issue_url: str | None
+    link_origin: Literal["deterministic", "best_effort"] | None = None
+    ticket: TicketDetail
+    timeline: list[TimelineEvent]
+    created_at: datetime
+    updated_at: datetime
+    reprocess_eligible: bool
 
 
 class MetricsResponse(BaseModel):

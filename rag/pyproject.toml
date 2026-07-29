@@ -7,6 +7,8 @@ dependencies = [
   "sqlite-vec>=0.1.6",
   "sentence-transformers>=3.0,<4.0",
   "fastmcp>=2.0,<3.0",
+  "fastapi>=0.115,<1.0",
+  "uvicorn>=0.30,<1.0",
   "pytest>=8.0,<10.0",
 ]
 

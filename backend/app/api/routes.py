@@ -1,5 +1,6 @@
 """API routes — HTTP boundary only.  No business rules here."""
 from __future__ import annotations
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -12,6 +13,7 @@ from app.domain.models import (
     MetricsResponse,
     ReprocessResponse,
     TicketIngestRequest,
+    WorkflowDetail,
     WorkflowListResponse,
     WorkflowResponse,
     WorkflowStatus,
@@ -39,6 +41,10 @@ def create_router(settings: Settings, session_factory: sessionmaker[Session]) ->
         if settings.jira_is_configured:
             return JiraClient(settings)
         return FakeJiraClient()
+
+    # Exposto para que os testes possam sobrescrever a dependência via
+    # `app.dependency_overrides[router.get_jira_client]` sem redeclarar rotas.
+    router.get_jira_client = get_jira_client  # type: ignore[attr-defined]
 
     @router.post(
         "/tickets/ingest",
@@ -73,9 +79,31 @@ def create_router(settings: Settings, session_factory: sessionmaker[Session]) ->
     def list_workflows(
         status_filter: WorkflowStatus | None = Query(default=None, alias="status"),
         limit: int = Query(default=50, ge=1, le=200),
+        offset: int = Query(default=0, ge=0),
+        priority: Literal["low", "medium", "high", "urgent"] | None = Query(default=None),
+        squad: str | None = Query(default=None, max_length=120),
+        q: str | None = Query(default=None, max_length=120),
         session: Session = Depends(get_session),
     ) -> WorkflowListResponse:
-        return WorkflowRepository(session).list_workflows(status=status_filter, limit=limit)
+        return WorkflowRepository(session).list_workflows(
+            status=status_filter,
+            limit=limit,
+            offset=offset,
+            priority=priority,
+            squad=squad,
+            q=q,
+        )
+
+    @router.get("/workflows/{workflow_execution_id}", response_model=WorkflowDetail)
+    def get_workflow_detail(
+        workflow_execution_id: UUID,
+        session: Session = Depends(get_session),
+    ) -> WorkflowDetail:
+        base_url = str(settings.jira_base_url) if settings.jira_base_url else None
+        detail = WorkflowRepository(session).get_workflow_detail(workflow_execution_id, base_url)
+        if detail is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="workflow not found")
+        return detail
 
     @router.get("/metrics", response_model=MetricsResponse)
     def get_metrics(session: Session = Depends(get_session)) -> MetricsResponse:

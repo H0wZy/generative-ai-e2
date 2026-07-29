@@ -74,7 +74,7 @@ export async function commitUpload(
       return { phase: 'error', message: `API respondeu HTTP ${res.status}.` }
     }
     const body = await res.json()
-    revalidatePath('/analytics')
+    revalidatePath('/reports')
     return {
       phase: 'committed',
       inserted: body.inserted ?? 0,

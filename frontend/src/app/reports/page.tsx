@@ -1,7 +1,15 @@
 import Link from 'next/link'
+import { RankedBars } from '@/components/charts/ranked-bars'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Stat } from '@/components/ui/stat'
+import { UnavailableState } from '@/components/ui/unavailable-state'
 import { ALL_FILTER_FIELDS, type FilterOptions } from './fields'
 import { FilterBar } from './filter-bar'
 import { UploadScreen } from './upload-screen'
+
+const LINK_CLASS =
+  'text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus'
 
 const API_URL = process.env.API_URL || 'http://localhost:8000'
 
@@ -83,57 +91,6 @@ function queryFrom(params: Record<string, string | string[] | undefined>): strin
   return query.toString()
 }
 
-function Stat({
-  label,
-  value,
-  hint,
-}: {
-  label: string
-  value: string
-  hint?: string
-}) {
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3">
-      <p className="text-xs text-zinc-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
-    </div>
-  )
-}
-
-function Bars({
-  rows,
-  emptyLabel,
-}: {
-  rows: { label: string; count: number; muted?: boolean }[]
-  emptyLabel: string
-}) {
-  if (rows.length === 0) {
-    return <p className="text-sm text-zinc-500">{emptyLabel}</p>
-  }
-  const max = Math.max(...rows.map((r) => r.count), 1)
-  return (
-    <div className="flex flex-col gap-1.5">
-      {rows.map((row) => (
-        <div key={row.label} className="flex items-center gap-3 text-sm">
-          <span className="w-44 shrink-0 truncate text-zinc-400" title={row.label}>
-            {row.label}
-          </span>
-          <span className="h-4 flex-1 overflow-hidden rounded bg-zinc-900">
-            <span
-              className={`block h-full rounded ${row.muted ? 'bg-zinc-700' : 'bg-sky-600'}`}
-              style={{ width: `${(row.count / max) * 100}%` }}
-            />
-          </span>
-          <span className="w-12 shrink-0 text-right tabular-nums text-zinc-300">
-            {row.count}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export default async function AnalyticsPage({
   searchParams,
 }: {
@@ -147,17 +104,12 @@ export default async function AnalyticsPage({
   // sense on an empty base.
   if (status === null) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 bg-zinc-950 px-6 text-zinc-100">
-        <p className="rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          Não foi possível conectar ao servidor.
-        </p>
-        <Link
-          href="/analytics"
-          className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
-        >
-          Tentar novamente
-        </Link>
-      </main>
+      <div className="p-4 md:p-6">
+        <UnavailableState
+          reason="unavailable"
+          detail="Não foi possível conectar ao servidor."
+        />
+      </div>
     )
   }
 
@@ -165,9 +117,9 @@ export default async function AnalyticsPage({
 
   if (!status.hasData || wantsUpload) {
     return (
-      <main className="flex flex-1 flex-col bg-zinc-950 px-6 py-10 text-zinc-100 sm:px-10">
+      <div className="p-4 md:p-6">
         <UploadScreen hasData={status.hasData} />
-      </main>
+      </div>
     )
   }
 
@@ -189,36 +141,23 @@ export default async function AnalyticsPage({
   const keep = new URLSearchParams(query)
 
   return (
-    <main className="flex flex-1 flex-col bg-zinc-950 px-6 py-10 text-zinc-100 sm:px-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="flex flex-col gap-4 p-4 md:p-6">
+      <div className="flex w-full flex-col gap-4">
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Painel analítico
-            </h1>
-            <p className="text-sm text-zinc-400">
+            <h2 className="text-xl font-semibold text-text">Reports</h2>
+            <p className="text-sm text-muted">
               {status.chamados} chamados · {status.cards} cards ·{' '}
               {status.squads.length} squads · {status.periodo.de} a{' '}
               {status.periodo.ate}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href="/"
-              className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
-            >
-              Fila de exceções
-            </Link>
-            <Link
-              href="/analytics?upload=1"
-              className="rounded border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-zinc-800"
-            >
-              Carregar novos dados
-            </Link>
-          </div>
+          <Link href="/reports?upload=1" className={LINK_CLASS}>
+            Carregar novos dados
+          </Link>
         </header>
 
-        <nav className="flex flex-wrap gap-2 border-b border-zinc-800 pb-2">
+        <nav className="flex flex-wrap gap-2 border-b border-divider pb-2">
           {TABS.map((tab) => {
             const tabParams = new URLSearchParams(keep)
             tabParams.set('tab', tab.id)
@@ -226,11 +165,12 @@ export default async function AnalyticsPage({
             return (
               <Link
                 key={tab.id}
-                href={`/analytics?${tabParams.toString()}`}
-                className={`rounded px-3 py-1.5 text-sm transition-colors ${
+                href={`/reports?${tabParams.toString()}`}
+                aria-current={active ? 'page' : undefined}
+                className={`min-h-9 rounded-md px-3 py-1.5 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
                   active
-                    ? 'bg-zinc-800 font-medium text-zinc-100'
-                    : 'text-zinc-400 hover:bg-zinc-900'
+                    ? 'bg-accent-800 font-medium text-neutral-100'
+                    : 'text-muted hover:bg-elevated hover:text-text'
                 }`}
               >
                 {tab.label}
@@ -246,53 +186,49 @@ export default async function AnalyticsPage({
           />
         )}
 
-        {activeTab === 'comparacao' && coverage && (
-          <section className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-5 py-4">
-                <p className="text-xs uppercase tracking-wide text-amber-400">
-                  Antes — tombamento manual
-                </p>
-                <p className="mt-2 text-4xl font-semibold tabular-nums">
+        {activeTab === 'comparacao' &&
+          (coverage ? (
+            <section className="grid gap-3 sm:grid-cols-2">
+              <Card title="Antes — tombamento manual">
+                <p className="text-4xl font-semibold tabular-nums text-text">
                   {coverage.best_effort.cobertura !== null
                     ? `${Math.round(coverage.best_effort.cobertura * 1000) / 10}%`
                     : '—'}
                 </p>
-                <p className="mt-2 text-sm text-zinc-400">
+                <p className="mt-2 text-sm text-muted">
                   {coverage.best_effort.com_chamado_correspondente} de{' '}
                   {coverage.best_effort.total_cards} cards têm vínculo utilizável.
                 </p>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="mt-1 text-xs text-muted">
                   {coverage.best_effort.com_vinculo_extraivel} têm um número
                   extraível do título; o resto não cita nenhum, ou cita dois
                   números ambíguos.
                 </p>
-              </div>
+              </Card>
 
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-5 py-4">
-                <p className="text-xs uppercase tracking-wide text-emerald-400">
-                  Depois — tombamento automático
-                </p>
-                <p className="mt-2 text-4xl font-semibold tabular-nums">
+              <Card title="Depois — tombamento automático">
+                <p className="text-4xl font-semibold tabular-nums text-text">
                   {coverage.deterministic.cobertura !== null
                     ? `${Math.round(coverage.deterministic.cobertura * 1000) / 10}%`
                     : '—'}
                 </p>
-                <p className="mt-2 text-sm text-zinc-400">
+                <p className="mt-2 text-sm text-muted">
                   {coverage.deterministic.com_vinculo} de{' '}
                   {coverage.deterministic.total_tombados} chamados tombados têm
                   vínculo estruturado.
                 </p>
-                <p className="mt-1 text-xs text-zinc-500">
+                <p className="mt-1 text-xs text-muted">
                   O identificador vai num rótulo da issue: não depende de
                   ninguém digitá-lo no título.
                 </p>
-              </div>
-            </div>
-          </section>
-        )}
+              </Card>
+            </section>
+          ) : (
+            <EmptyState title="Comparação indisponível" hint="A base não devolveu cobertura." />
+          ))}
 
-        {activeTab === 'throughput' && throughput && (
+        {activeTab === 'throughput' &&
+          (throughput ? (
           <section className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <Stat
@@ -305,7 +241,7 @@ export default async function AnalyticsPage({
                 value={String(throughput.total_cards_no_filtro)}
               />
             </div>
-            <Bars
+            <RankedBars
               rows={throughput.por_periodo.map((row) => ({
                 label: row.periodo,
                 count: row.count,
@@ -313,9 +249,12 @@ export default async function AnalyticsPage({
               emptyLabel="Nenhum card concluído no recorte atual."
             />
           </section>
-        )}
+          ) : (
+            <EmptyState title="Throughput indisponível" hint="A base não devolveu dados." />
+          ))}
 
-        {activeTab === 'distribuicao' && distribuicao && (
+        {activeTab === 'distribuicao' &&
+          (distribuicao ? (
           <section className="flex flex-col gap-6">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <Stat label="Em execução" value={String(distribuicao.total_ativos)} />
@@ -326,10 +265,10 @@ export default async function AnalyticsPage({
               />
             </div>
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-300">
+              <h3 className="mb-2 text-sm font-medium text-text">
                 Por responsável (só status de execução)
               </h3>
-              <Bars
+              <RankedBars
                 rows={distribuicao.por_responsavel.map((row) => ({
                   label: row.assignee,
                   count: row.count,
@@ -338,10 +277,10 @@ export default async function AnalyticsPage({
               />
             </div>
             <div>
-              <h3 className="mb-2 text-sm font-medium text-zinc-300">
+              <h3 className="mb-2 text-sm font-medium text-text">
                 Por status — fluxo inteiro
               </h3>
-              <Bars
+              <RankedBars
                 rows={distribuicao.por_status.map((row) => ({
                   label: row.status,
                   count: row.count,
@@ -349,15 +288,18 @@ export default async function AnalyticsPage({
                 }))}
                 emptyLabel="Nenhum card com responsável no recorte atual."
               />
-              <p className="mt-2 text-xs text-zinc-600">
-                Em azul, os cinco status que contam como execução; em cinza, o
-                resto do fluxo.
+              <p className="mt-2 text-xs text-muted">
+                Em destaque, os cinco status que contam como execução; em cinza,
+                o resto do fluxo.
               </p>
             </div>
           </section>
-        )}
+          ) : (
+            <EmptyState title="Distribuição indisponível" hint="A base não devolveu dados." />
+          ))}
 
-        {activeTab === 'lead-time' && leadTime && (
+        {activeTab === 'lead-time' &&
+          (leadTime ? (
           <section className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <Stat
@@ -377,7 +319,7 @@ export default async function AnalyticsPage({
                 hint="Só chamados com card vinculado já terminado"
               />
             </div>
-            <Bars
+            <RankedBars
               rows={leadTime.distribuicao.map((row) => ({
                 label: row.faixa,
                 count: row.count,
@@ -385,8 +327,10 @@ export default async function AnalyticsPage({
               emptyLabel="Nenhum chamado entregue no recorte atual."
             />
           </section>
-        )}
+          ) : (
+            <EmptyState title="Lead time indisponível" hint="A base não devolveu dados." />
+          ))}
       </div>
-    </main>
+    </div>
   )
 }
