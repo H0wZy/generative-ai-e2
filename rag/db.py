@@ -103,7 +103,10 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
 
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    # DELETE, não WAL: o banco é servido depois via bind mount `:ro` (rag-search,
+    # MCP) — WAL exige sidecar -wal/-shm gravável até para leitura, o que um
+    # mount somente-leitura nunca permite.
+    conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("PRAGMA foreign_keys=ON")
     load_vec_extension(conn)
     return conn

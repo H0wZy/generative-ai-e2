@@ -226,7 +226,21 @@ Executado por script (não código do produto) contra `tcsgen.atlassian.net`, bo
 
 Verificado batendo direto nos três endpoints reais (`/api/v1/agile/sprint`, `/board`, `/backlog`) após reconstruir o container — `velocity: [{"FRESH Sprint 1": committed 11.0/completed 11.0}, {"FRESH Sprint 2": committed 18.0/completed 18.0}]`, burndown `actual` com o degrau exato no dia em que o escopo foi adicionado.
 
+## Assistente ligado (`ASSISTANT_ENABLED=true`): dois bugs reais na busca (2026-07-30)
+
+Ao testar a tela do assistente ao vivo (`next dev` em `:3000`), toda pergunta voltava `status: "unavailable"`, `sources: []`. Investigado de fora para dentro:
+
+10. **`rag-search` nunca tinha subido nesta sessão.** `docker ps` não listava o container — `docker-compose.yml` não tem `depends_on` da API para ele de propósito (ADR: imagem multi-GB com torch), então nada o sobe sozinho. `docker compose up -d --build rag-search` resolve, mas expôs o próximo problema.
+
+11. **`journal_mode=WAL` incompatível com o bind mount `:ro`.** `rag/db.py:get_connection()` fixava `PRAGMA journal_mode=WAL` sem condição. O compose monta `./rag/data:/app/rag/data:ro` — e WAL exige sidecar `-wal`/`-shm` gravável mesmo para **leitura**. Todo `/health` e `/search` batia em `sqlite3.OperationalError: unable to open database file`. Sintoma no assistente: `unavailable` com `sources: []` (busca fora do ar, achado #3 da revisão de código fazendo exatamente o que devia). Corrigido: `journal_mode=DELETE` em `get_connection()` (o banco é somente-leitura para quem consome — não há motivo pra WAL) e convertido o `knowledge.db` existente com `PRAGMA journal_mode=DELETE;` direto no arquivo, sem precisar resincronizar.
+
+12. **`search()` decidia sqlite-vec vs. fallback pela capacidade do processo, não pelo conteúdo do banco.** `SQLITE_VEC_AVAILABLE` diz se a extensão carrega *neste* processo. O `knowledge.db` existente foi sincronizado num ambiente sem sqlite-vec disponível — só tem `embeddings_fallback` (110 linhas), nunca teve a tabela virtual `embeddings`. No container `rag-search`, a extensão carrega (`SQLITE_VEC_AVAILABLE=True`), então `search()` tentava `SELECT ... FROM embeddings` contra uma tabela inexistente, capturava o `OperationalError` — mesmo bloco `except` que trata "sem evidência" — e devolvia lista vazia sempre, para qualquer pergunta, com qualquer `max_distance`. Indistinguível de `no_grounding` legítimo até eu forçar `max_distance=2.0` (deveria trazer qualquer coisa) e ainda ver `total: 0`. Corrigido: `_has_vec_table(conn)` checa `sqlite_master` antes de escolher o caminho vec0; só usa `embeddings` se a tabela **existir no banco conectado**, não só se a extensão carregar no processo.
+
+Depois dos dois fixes, mesma pergunta ("Por que a classificação por LLM está desligada por padrão?") passou a retornar 5 trechos reais (distância 0,479–0,511, bem na faixa calibrada do limiar) e o pipeline completo respondeu `status: "answered"` com o modelo remoto real (OpenRouter), admitindo honestamente que os trechos recuperados não cobrem a pergunta específica — comportamento correto, não alucinado.
+
+Suíte após os fixes: `rag/tests` 51 passed (sem teste novo — os dois bugs são de integração processo↔arquivo de banco↔mount do Docker, não de lógica pura testável em `:memory:`; a suíte existente já usa `:memory:` e nunca exercita `:ro` nem um banco pré-sincronizado sem sqlite-vec).
+
 ## Pendências conhecidas
 
 - **`max` de coluna (WIP limit) no board FRESH.** Só editável pela UI do Jira (Board Settings → Columns) — a REST API pública não expõe escrita de `columnConfig`. Recomendado `max=1` em "Fazendo".
-- **`ASSISTANT_ENABLED` segue `false`.** O número está publicado (0,72); ligar é decisão de quem opera, ciente de que o nível gratuito do provedor pode reter prompt.
+- **Cobertura de teste para o par WAL/`:ro`.** Os achados #11 e #12 só apareceram testando o container real; não há teste automatizado que monte um SQLite em modo somente-leitura ou que simule um banco sincronizado sem sqlite-vec. Se o `Dockerfile` ou o mount mudarem, o mesmo bug pode voltar sem a suíte acusar.
