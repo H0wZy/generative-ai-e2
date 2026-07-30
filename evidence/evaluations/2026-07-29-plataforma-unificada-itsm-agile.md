@@ -240,7 +240,24 @@ Depois dos dois fixes, mesma pergunta ("Por que a classificação por LLM está 
 
 Suíte após os fixes: `rag/tests` 51 passed (sem teste novo — os dois bugs são de integração processo↔arquivo de banco↔mount do Docker, não de lógica pura testável em `:memory:`; a suíte existente já usa `:memory:` e nunca exercita `:ro` nem um banco pré-sincronizado sem sqlite-vec).
 
+## Mudança de requisito: FR-038 deixa de bloquear a resposta (2026-07-30)
+
+Pedido do usuário ao ver o comportamento antigo ao vivo: "quero que seja possível responder qualquer coisa (com guardrail do escopo do projeto) e só consultar RAG se precisar" — a leitura de FR-038 original ("sem trecho relevante, o assistente MUST declarar ausência de fundamento em vez de produzir resposta afirmativa") travava o assistente num modo pergunta-e-resposta-documental, não no assistente generativo que o produto queria demonstrar.
+
+Duas arquiteturas possíveis foram apresentadas: (a) busca sempre roda, nunca bloqueia — resultado (vazio ou não) vai pro prompt, guardrail de escopo e "avise quando não é da documentação" são instrução de prompt, funciona com qualquer modelo; (b) tool-calling real, o modelo decide se chama `search_docs()`. Escolhida (a): mais barata (a busca já é local e rápida, não há razão pra evitá-la), e não depende do modelo free tier atual (`nvidia/nemotron-3-ultra-550b-a55b:free`) suportar function-calling de forma confiável.
+
+**spec.md**: FR-038 reescrito (responde com conhecimento geral, avisando que não é da documentação, em vez de recusar) e adicionado FR-038a (recusar pergunta fora do escopo do projeto).
+
+**Código**: `AssistantStatus` perde `no_grounding` (nunca mais alcançável — o pipeline não tem mais corte algum antes de chamar o modelo, só `disabled` continua saindo cedo). `RagUnavailable` dobra para o mesmo caminho de busca vazia (`sources: []`, segue pro modelo) — deixa de ser um status próprio; continua existindo como tipo de exceção só para permitir logar/alertar falha de infra sem confundir com resultado vazio legítimo. `_SYSTEM_PROMPT` reescrito: define o escopo do assistente (ITSM/Freshservice, Agile/Jira, RAG, arquitetura do sistema), instrui recusa educada fora dele, e instrui resposta por conhecimento geral quando não há trecho — o guardrail é prompt, não corte de código.
+
+**Frontend**: removida a faixa de `no_grounding` em `message.tsx`; adicionada uma nota discreta (`text-muted`) quando `status === "answered"` e `sources.length === 0`, avisando que a resposta é de conhecimento geral — mantém a transparência da FR-043/038 sem bloquear.
+
+**Testes**: os dois testes que afirmavam o corte (`test_empty_retrieval_returns_no_grounding_without_calling_the_model`, `test_rag_down_is_unavailable_not_no_grounding`) reescritos para o comportamento oposto — modelo é chamado, `status: "answered"`, `sources: []`. Suíte: 249 passed.
+
+Verificado ao vivo: a mesma pergunta que antes voltava `no_grounding` (achado #12 acima, já corrigido) agora responde com o modelo, citando os 5 trechos reais quando relevantes.
+
 ## Pendências conhecidas
 
 - **`max` de coluna (WIP limit) no board FRESH.** Só editável pela UI do Jira (Board Settings → Columns) — a REST API pública não expõe escrita de `columnConfig`. Recomendado `max=1` em "Fazendo".
 - **Cobertura de teste para o par WAL/`:ro`.** Os achados #11 e #12 só apareceram testando o container real; não há teste automatizado que monte um SQLite em modo somente-leitura ou que simule um banco sincronizado sem sqlite-vec. Se o `Dockerfile` ou o mount mudarem, o mesmo bug pode voltar sem a suíte acusar.
+- **Guardrail de escopo (FR-038a) não tem teste automatizado.** É instrução de prompt, não código — validar exige perguntar algo fora de escopo pro modelo real e ler a resposta; não dá pra travar num `assert` determinístico com o `FakeAssistantClient`.

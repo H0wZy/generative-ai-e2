@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 
 AssistantStatus = Literal[
     "answered",
-    "no_grounding",
     "rate_limited",
     "unavailable",
     "timeout",

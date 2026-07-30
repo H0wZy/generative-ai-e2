@@ -47,8 +47,8 @@ def create_assistant_router(settings: Settings) -> APIRouter:
             payload,
             enabled=settings.assistant_is_configured,
             rag_client=rag_client,
-            # Função, não instância: o serviço só resolve o cliente depois do
-            # corte de `no_grounding`.
+            # Função, não instância: o serviço só chama o cliente quando o
+            # assistente está habilitado.
             model_client_factory=lambda: model_client,
             max_context_chars=settings.assistant_max_context_chars,
         )

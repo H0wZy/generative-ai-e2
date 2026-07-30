@@ -58,30 +58,32 @@ def test_answered_carries_answer_and_sources(assistant_client: TestClient) -> No
     assert body["truncated_history"] is False
 
 
-def test_empty_retrieval_returns_no_grounding_without_calling_the_model(
+def test_empty_retrieval_still_answers_from_general_knowledge(
     fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
 ) -> None:
+    """FR-038: busca vazia não bloqueia — o modelo responde sem trecho para citar."""
     fake_rag.results = []
     body = _ask(_client(True, fake_rag, fake_assistant)).json()
 
-    assert body["status"] == "no_grounding"
-    assert body["answer"] is None
+    assert body["status"] == "answered"
+    assert body["answer"]
     assert body["sources"] == []
-    assert fake_assistant.calls == []
+    assert len(fake_assistant.calls) == 1
 
 
-def test_rag_down_is_unavailable_not_no_grounding(
+def test_rag_down_still_answers_without_sources(
     fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
 ) -> None:
-    """Busca fora do ar não pode virar "não há evidência na documentação"."""
+    """Busca fora do ar também não bloqueia — mesmo caminho de busca vazia."""
     from app.integrations.rag_search import RagUnavailable
 
     fake_rag.failure = RagUnavailable("conexão recusada")
     body = _ask(_client(True, fake_rag, fake_assistant)).json()
 
-    assert body["status"] == "unavailable"
-    assert body["answer"] is None
-    assert fake_assistant.calls == []
+    assert body["status"] == "answered"
+    assert body["answer"]
+    assert body["sources"] == []
+    assert len(fake_assistant.calls) == 1
 
 
 def test_disabled_returns_disabled_without_touching_rag_or_model(

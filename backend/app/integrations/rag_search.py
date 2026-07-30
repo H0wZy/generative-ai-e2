@@ -19,10 +19,10 @@ DEFAULT_MAX_DISTANCE = 0.50
 class RagUnavailable(Exception):
     """Busca não respondeu.
 
-    Distinto de lista vazia de propósito: `results: []` é resposta legítima e
-    vira `no_grounding`; serviço fora do ar virando `no_grounding` diria ao
-    usuário "não há evidência na documentação" quando o que houve foi uma
-    falha de infraestrutura.
+    Distinto de lista vazia de propósito, mesmo os dois caindo no mesmo
+    caminho (resposta sem trecho para citar, FR-038): `results: []` é
+    resultado legítimo, isto aqui é falha de infraestrutura — o tipo
+    diferente é o que permite logar/alertar um sem confundir com o outro.
     """
 
 
@@ -58,7 +58,7 @@ class RagSearchClient:
 
 @dataclass
 class FakeRagSearchClient:
-    """Fake determinístico. `results = []` exercita o corte de `no_grounding`."""
+    """Fake determinístico. `results = []` exercita resposta sem trecho para citar."""
 
     failure: RagUnavailable | None = None
     results: list[RetrievedSource] = field(

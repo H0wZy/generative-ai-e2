@@ -259,7 +259,6 @@ export interface RetrievedSource {
 
 export type AssistantStatus =
   | "answered"
-  | "no_grounding"
   | "rate_limited"
   | "unavailable"
   | "timeout"

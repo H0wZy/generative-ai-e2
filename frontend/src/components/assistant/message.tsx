@@ -5,8 +5,6 @@ import { Sources } from "./sources";
 // Faixa distinta por status (FR-043): cada modo de falha tem texto próprio,
 // não uma mensagem de erro genérica.
 const STATUS_NOTICE: Record<Exclude<AssistantStatus, "answered">, string> = {
-  no_grounding:
-    "A documentação indexada não tem trecho suficiente para responder isso. Nenhum modelo foi consultado.",
   rate_limited:
     "O provedor do modelo atingiu o limite de requisições. Os trechos recuperados estão abaixo.",
   unavailable:
@@ -44,6 +42,11 @@ export function AssistantMessageView({
         </p>
       )}
       {answer && <p className="whitespace-pre-wrap text-sm text-text">{answer}</p>}
+      {status === "answered" && sources.length === 0 && (
+        <p className="text-xs text-muted">
+          Resposta de conhecimento geral — nenhum trecho da documentação indexada foi usado.
+        </p>
+      )}
       {truncatedHistory && (
         <p className="text-xs text-muted">
           O histórico foi truncado para caber no contexto.

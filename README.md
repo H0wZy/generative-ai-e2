@@ -264,11 +264,18 @@ atingido (FR-028) sem precisar mover mais nada.
 
 **Assistente desligado por padrão (`ASSISTANT_ENABLED=false`).** Roda em modelo
 remoto no OpenRouter porque a máquina local não comporta modelo de geração
-grande (ADR-012). `recall@5 = 0,72` medido em 2026-07-29 sobre 18 perguntas —
-cerca de uma em cada quatro cai em `no_grounding` e **não chega ao modelo**. O
-nível gratuito do provedor pode reter prompt para treino; por isso a redação de
-PII acontece antes de o texto sair do processo, e nenhum dado de produção deve
-entrar numa pergunta.
+grande (ADR-012). Generativo com guardrail de escopo, não travado à
+recuperação (FR-038/038a, 2026-07-30): a busca no RAG nunca bloqueia a
+resposta — sem trecho relevante o modelo responde com conhecimento geral
+dentro do escopo do projeto (ITSM/Freshservice, Agile/Jira, RAG, a
+arquitetura deste sistema), avisando que a resposta não vem da documentação
+indexada; pergunta sem relação nenhuma com esse escopo é recusada. O
+guardrail é instrução de prompt, não corte de código. `recall@5 = 0,72`
+medido em 2026-07-29 sobre 18 perguntas — cerca de uma em cada quatro não
+recupera trecho, e agora essas seguem para resposta geral em vez de ficarem
+sem resposta. O nível gratuito do provedor pode reter prompt para treino;
+por isso a redação de PII acontece antes de o texto sair do processo, e
+nenhum dado de produção deve entrar numa pergunta.
 
 **Sem paginação por cursor.** A listagem aplica apenas `LIMIT`, com teto de 200.
 Adequado ao volume sintético da demonstração.
