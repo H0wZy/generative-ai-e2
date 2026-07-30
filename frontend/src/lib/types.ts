@@ -60,6 +60,7 @@ export interface WorkflowListItem {
   jira_issue_key: string | null;
   link_origin: "deterministic" | "best_effort" | null;
   reprocess_eligible: boolean;
+  resolved_at: string | null;
   ticket: {
     source_ticket_id: string;
     subject: string;
@@ -94,6 +95,7 @@ export interface WorkflowDetail {
   created_at: string;
   updated_at: string;
   reprocess_eligible: boolean;
+  resolved_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -264,11 +266,19 @@ export type AssistantStatus =
   | "timeout"
   | "disabled";
 
+export interface TicketRefSource {
+  jira_issue_key: string;
+  status: WorkflowStatus;
+  subject: string;
+  squad_id: string | null;
+}
+
 export interface AssistantAnswer {
   status: AssistantStatus;
   answer: string | null;
   sources: RetrievedSource[];
   truncated_history: boolean;
+  ticket_context: TicketRefSource | null;
 }
 
 // ---------------------------------------------------------------------------

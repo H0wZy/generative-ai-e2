@@ -71,7 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(create_router(resolved, session_factory))
     app.include_router(create_agile_router(resolved))
-    app.include_router(create_assistant_router(resolved))
+    app.include_router(create_assistant_router(resolved, session_factory))
 
     return app
 

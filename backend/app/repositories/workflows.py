@@ -52,6 +52,10 @@ _TIMELINE_EVENTS: dict[str, tuple[str, frozenset[str]]] = {
 REPROCESS_ELIGIBLE_STATUSES = ("failed", "needs_human_review")
 
 
+class TicketAlreadyResolved(Exception):
+    """Raised by `update_ticket_fields` when the ticket's `resolved_at` is set."""
+
+
 def _timeline_event(row: AuditLogRow) -> TimelineEvent:
     summary, allowed = _TIMELINE_EVENTS.get(row.event_type, (row.event_type, frozenset()))
     detail: dict[str, object] = {}
@@ -431,6 +435,7 @@ class WorkflowRepository:
                     priority=ticket.priority,
                 ),
                 updated_at=workflow.updated_at,
+                resolved_at=ticket.resolved_at,
             )
             for workflow, ticket, link in rows
         ]
@@ -497,7 +502,77 @@ class WorkflowRepository:
             created_at=workflow.created_at,
             updated_at=workflow.updated_at,
             reprocess_eligible=workflow.status in REPROCESS_ELIGIBLE_STATUSES,
+            resolved_at=ticket.resolved_at,
         )
+
+    def update_ticket_fields(
+        self,
+        workflow_execution_id: uuid.UUID,
+        *,
+        subject: str | None = None,
+        description: str | None = None,
+        priority: str | None = None,
+        category: str | None = None,
+    ) -> WorkflowDetail | None:
+        """Edit ticket fields while the ticket is still open (FR-052).
+
+        Raises ``TicketAlreadyResolved`` if `resolved_at` is set (route turns
+        that into 409). Returns ``None`` if the workflow doesn't exist (404).
+        Only fields passed as non-None are changed.
+        """
+        workflow = self._session.get(WorkflowExecutionRow, workflow_execution_id)
+        if workflow is None:
+            return None
+        ticket = self._session.get(TicketRow, workflow.ticket_id)
+        if ticket.resolved_at is not None:  # type: ignore[union-attr]
+            raise TicketAlreadyResolved()
+
+        if subject is not None:
+            ticket.subject = subject  # type: ignore[union-attr]
+        if description is not None:
+            ticket.description = description  # type: ignore[union-attr]
+        if priority is not None:
+            ticket.priority = priority  # type: ignore[union-attr]
+        if category is not None:
+            ticket.category = category  # type: ignore[union-attr]
+
+        self._session.commit()
+        return self.get_workflow_detail(workflow_execution_id)
+
+    def mark_resolved(self, workflow_execution_id: uuid.UUID) -> datetime | None:
+        """Mark the ticket as concluded (FR-053).
+
+        Idempotent: repeating the call after it's already resolved returns
+        the ORIGINAL timestamp unchanged, never a new one and never an error.
+        """
+        workflow = self._session.get(WorkflowExecutionRow, workflow_execution_id)
+        if workflow is None:
+            return None
+        ticket = self._session.get(TicketRow, workflow.ticket_id)
+        if ticket.resolved_at is not None:  # type: ignore[union-attr]
+            return ticket.resolved_at  # type: ignore[union-attr]
+
+        ticket.resolved_at = datetime.now(timezone.utc)  # type: ignore[union-attr]
+        self._session.commit()
+        return ticket.resolved_at  # type: ignore[union-attr]
+
+    def find_by_jira_key(self, jira_issue_key: str) -> WorkflowDetail | None:
+        """Lookup for the assistant's ticket-context heuristic (FR-060).
+
+        Best-effort by design: caller catches DB errors and treats them the
+        same as "not found" — never blocks the assistant's answer.
+        """
+        link = self._session.execute(
+            select(JiraIssueLinkRow).where(JiraIssueLinkRow.jira_issue_key == jira_issue_key)
+        ).scalar_one_or_none()
+        if link is None:
+            return None
+        workflow = self._session.execute(
+            select(WorkflowExecutionRow).where(WorkflowExecutionRow.ticket_id == link.ticket_id)
+        ).scalar_one_or_none()
+        if workflow is None:
+            return None
+        return self.get_workflow_detail(workflow.id)
 
     def get_metrics(self) -> MetricsResponse:
         counts_by_status = dict(

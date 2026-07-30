@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.routes_assistant import create_assistant_router
 from app.core.config import Settings
@@ -26,10 +27,13 @@ def _settings(enabled: bool) -> Settings:
 
 
 def _client(
-    enabled: bool, fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
+    enabled: bool,
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
 ) -> TestClient:
     app = FastAPI()
-    router = create_assistant_router(_settings(enabled))
+    router = create_assistant_router(_settings(enabled), session_factory)
     app.include_router(router)
     app.dependency_overrides[router.get_rag_client] = lambda: fake_rag
     app.dependency_overrides[router.get_model_client] = lambda: fake_assistant
@@ -37,8 +41,10 @@ def _client(
 
 
 @pytest.fixture()
-def assistant_client(fake_rag, fake_assistant) -> TestClient:
-    return _client(True, fake_rag, fake_assistant)
+def assistant_client(
+    fake_rag, fake_assistant, session_factory: sessionmaker[Session]
+) -> TestClient:
+    return _client(True, fake_rag, fake_assistant, session_factory)
 
 
 def _ask(client: TestClient, question: str = "Como funciona a idempotência?", **kwargs):
@@ -59,11 +65,13 @@ def test_answered_carries_answer_and_sources(assistant_client: TestClient) -> No
 
 
 def test_empty_retrieval_still_answers_from_general_knowledge(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
 ) -> None:
     """FR-038: busca vazia não bloqueia — o modelo responde sem trecho para citar."""
     fake_rag.results = []
-    body = _ask(_client(True, fake_rag, fake_assistant)).json()
+    body = _ask(_client(True, fake_rag, fake_assistant, session_factory)).json()
 
     assert body["status"] == "answered"
     assert body["answer"]
@@ -72,13 +80,15 @@ def test_empty_retrieval_still_answers_from_general_knowledge(
 
 
 def test_rag_down_still_answers_without_sources(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
 ) -> None:
     """Busca fora do ar também não bloqueia — mesmo caminho de busca vazia."""
     from app.integrations.rag_search import RagUnavailable
 
     fake_rag.failure = RagUnavailable("conexão recusada")
-    body = _ask(_client(True, fake_rag, fake_assistant)).json()
+    body = _ask(_client(True, fake_rag, fake_assistant, session_factory)).json()
 
     assert body["status"] == "answered"
     assert body["answer"]
@@ -87,9 +97,11 @@ def test_rag_down_still_answers_without_sources(
 
 
 def test_disabled_returns_disabled_without_touching_rag_or_model(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
 ) -> None:
-    body = _ask(_client(False, fake_rag, fake_assistant)).json()
+    body = _ask(_client(False, fake_rag, fake_assistant, session_factory)).json()
 
     assert body["status"] == "disabled"
     assert body["sources"] == []
@@ -104,10 +116,13 @@ def test_disabled_returns_disabled_without_touching_rag_or_model(
 
 @pytest.mark.parametrize("failure", ["rate_limited", "unavailable", "timeout"])
 def test_provider_failure_keeps_sources(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient, failure: str
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    failure: str,
+    session_factory: sessionmaker[Session],
 ) -> None:
     fake_assistant.failure = failure
-    body = _ask(_client(True, fake_rag, fake_assistant)).json()
+    body = _ask(_client(True, fake_rag, fake_assistant, session_factory)).json()
 
     assert body["status"] == failure
     assert body["answer"] is None
@@ -122,10 +137,13 @@ def test_provider_failure_keeps_sources(
 
 @pytest.mark.parametrize("failure", [None, "rate_limited", "unavailable", "timeout"])
 def test_response_never_carries_key_model_or_provider_url(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient, failure
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    failure,
+    session_factory: sessionmaker[Session],
 ) -> None:
     fake_assistant.failure = failure
-    raw = _ask(_client(True, fake_rag, fake_assistant)).text
+    raw = _ask(_client(True, fake_rag, fake_assistant, session_factory)).text
 
     assert _KEY not in raw
     assert _MODEL not in raw
@@ -168,13 +186,15 @@ def test_question_over_2000_chars_is_422(assistant_client: TestClient) -> None:
 
 
 def test_long_history_is_truncated_and_flagged(
-    fake_rag: FakeRagSearchClient, fake_assistant: FakeAssistantClient
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
 ) -> None:
     history = [
         {"role": "user" if i % 2 == 0 else "assistant", "text": "x" * 900}
         for i in range(20)
     ]
-    client = _client(True, fake_rag, fake_assistant)
+    client = _client(True, fake_rag, fake_assistant, session_factory)
     body = _ask(client, history=history).json()
 
     assert body["status"] == "answered"

@@ -41,6 +41,7 @@ def test_list_workflows_returns_expected_shape(client: TestClient) -> None:
         "reprocess_eligible",
         "ticket",
         "updated_at",
+        "resolved_at",
     }
     assert set(item["ticket"].keys()) == {"source_ticket_id", "subject", "category", "priority"}
     assert item["status"] == "completed"

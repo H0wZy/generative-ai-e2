@@ -47,6 +47,9 @@ class TicketRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # NULL = chamado aberto. Preenchido = concluído (FR-053). Setar só quando
+    # NULL torna "marcar como concluído" idempotente.
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     workflow_executions: Mapped[list[WorkflowExecutionRow]] = relationship(back_populates="ticket")
     jira_issue_link: Mapped[JiraIssueLinkRow | None] = relationship(back_populates="ticket", uselist=False)
@@ -184,3 +187,42 @@ class AuditLogRow(Base):
     )
 
     workflow_execution: Mapped[WorkflowExecutionRow | None] = relationship(back_populates="audit_logs")
+
+
+class AssistantConversationRow(Base):
+    __tablename__ = "assistant_conversations"
+
+    # Gerado no navegador (crypto.randomUUID()), nunca no servidor — não há
+    # login para amarrar a um usuário (FR-058/FR-059).
+    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    messages: Mapped[list[AssistantMessageRow]] = relationship(
+        back_populates="conversation", order_by="AssistantMessageRow.created_at"
+    )
+
+
+class AssistantMessageRow(Base):
+    __tablename__ = "assistant_messages"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assistant_conversations.session_id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    # Serialização de RetrievedSource[]/TicketRefSource, ou NULL. Já redigido
+    # (redaction.py) antes de chegar aqui — Princípio II não distingue "sair
+    # para o modelo" de "sair para o disco".
+    sources_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    conversation: Mapped[AssistantConversationRow] = relationship(back_populates="messages")
+
+    __table_args__ = (
+        Index("ix_assistant_messages_conversation_created", "conversation_id", "created_at"),
+    )

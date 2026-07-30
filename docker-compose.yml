@@ -38,6 +38,25 @@ services:
     # e o modelo de embedding, e a API não precisa dela para subir — busca
     # indisponível vira `no_grounding`, não falha de boot.
 
+  # Drena outbox_events continuamente — sem isso, um chamado que cai em
+  # retry_scheduled (Jira momentaneamente indisponível) fica preso para
+  # sempre, já que o `process-next` síncrono da tela só reivindica o evento
+  # da vez em que é chamado.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.worker", "--loop"]
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://genai_e2:${POSTGRES_PASSWORD:-genai_e2_dev}@postgres:5432/genai_e2
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Busca semântica do RAG. Consumido só pela rede interna — sem porta
   # publicada de propósito: o navegador nunca fala com este serviço.
   rag-search:

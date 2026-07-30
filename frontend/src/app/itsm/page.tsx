@@ -49,11 +49,19 @@ export default async function ItsmQueue({
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
-      <header>
-        <h2 className="text-xl font-semibold text-text">Fila de tickets</h2>
-        <p className="text-sm text-muted">
-          {page.ok ? `${page.data.total} execução(ões) no recorte atual` : "total indisponível"}
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-text">Fila de tickets</h2>
+          <p className="text-sm text-muted">
+            {page.ok ? `${page.data.total} execução(ões) no recorte atual` : "total indisponível"}
+          </p>
+        </div>
+        <Link
+          href="/itsm/new"
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-neutral-100 transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Novo chamado
+        </Link>
       </header>
 
       <TicketFilters squads={squads} />

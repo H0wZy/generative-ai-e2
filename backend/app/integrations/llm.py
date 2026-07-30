@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 from app.core.config import Settings
 from app.domain.squads import SQUADS, normalize_squad
+from app.integrations.openrouter import AssistantFailure, OpenRouterClient
 
 KNOWN_SQUADS = set(SQUADS)
 
@@ -90,6 +91,38 @@ class OllamaClient:
         except OSError:
             raise LLMClientError("llm prompt template unavailable") from None
         except (KeyError, json.JSONDecodeError, ValidationError):
+            raise LLMClientError("llm returned an invalid response") from None
+
+
+_JSON_SYSTEM_PROMPT = (
+    "Responda APENAS com um objeto JSON válido, sem texto antes ou depois, "
+    'no formato {"squad": ..., "confidence": ..., "reason": ...}.'
+)
+
+
+class OpenRouterSquadClient:
+    """Real adapter — classifies via OpenRouter, reusing ``OpenRouterClient``."""
+
+    def __init__(self, settings: Settings) -> None:
+        self._client = OpenRouterClient(
+            base_url=settings.assistant_base_url,
+            api_key=settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else "",
+            model=settings.llm_model,
+            timeout_seconds=settings.llm_timeout_seconds,
+        )
+
+    def classify_squad(self, subject: str, description: str) -> SquadClassification:
+        try:
+            prompt = _PROMPT_PATH.read_text().format(subject=subject, description=description)
+            raw = self._client.complete(_JSON_SYSTEM_PROMPT, prompt)
+            raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            data = json.loads(raw)
+            return SquadClassification.model_validate(data)
+        except AssistantFailure:
+            raise LLMClientError("llm request failed") from None
+        except OSError:
+            raise LLMClientError("llm prompt template unavailable") from None
+        except (json.JSONDecodeError, ValidationError):
             raise LLMClientError("llm returned an invalid response") from None
 
 

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ReprocessButton } from "@/components/itsm/reprocess-button";
+import { TicketEditPanel } from "@/components/itsm/ticket-edit-panel";
+import type { TicketFormValues } from "@/components/itsm/ticket-form";
 import { Timeline } from "@/components/itsm/timeline";
 import { Card } from "@/components/ui/card";
 import { Tag } from "@/components/ui/tag";
@@ -116,10 +118,26 @@ export default async function TicketDetailPage({
             <Field label="Categoria">{detail.ticket.category ?? "—"}</Field>
             <Field label="Origem">{detail.ticket.source_system}</Field>
             <Field label="Solicitante">{detail.ticket.requester ?? "—"}</Field>
+            <Field label="Concluído em">
+              {detail.resolved_at ? new Date(detail.resolved_at).toLocaleString("pt-BR") : "—"}
+            </Field>
           </dl>
           <p className="mt-3 whitespace-pre-wrap text-sm text-muted">
             {detail.ticket.description}
           </p>
+        </Card>
+
+        <Card title="Editar chamado" className="lg:col-span-2">
+          <TicketEditPanel
+            id={detail.workflow_execution_id}
+            initialValues={{
+              subject: detail.ticket.subject,
+              description: detail.ticket.description,
+              priority: detail.ticket.priority as TicketFormValues["priority"],
+              category: detail.ticket.category ?? "",
+            }}
+            resolved={detail.resolved_at !== null}
+          />
         </Card>
 
         <Card title="Linha do tempo">

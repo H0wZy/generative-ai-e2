@@ -1,4 +1,5 @@
-import type { AssistantStatus, RetrievedSource } from "@/lib/types";
+import { renderAssistantMarkdown } from "@/lib/markdown";
+import type { AssistantStatus, RetrievedSource, TicketRefSource } from "@/lib/types";
 
 import { Sources } from "./sources";
 
@@ -28,11 +29,13 @@ export function AssistantMessageView({
   answer,
   sources,
   truncatedHistory,
+  ticketContext,
 }: {
   status: AssistantStatus;
   answer: string | null;
   sources: RetrievedSource[];
   truncatedHistory: boolean;
+  ticketContext: TicketRefSource | null;
 }) {
   return (
     <div className="flex max-w-[46rem] flex-col gap-2 self-start rounded-lg bg-surface px-3 py-2 shadow-sm">
@@ -41,8 +44,12 @@ export function AssistantMessageView({
           {STATUS_NOTICE[status]}
         </p>
       )}
-      {answer && <p className="whitespace-pre-wrap text-sm text-text">{answer}</p>}
-      {status === "answered" && sources.length === 0 && (
+      {answer && (
+        <p className="whitespace-pre-wrap text-sm text-text">
+          {renderAssistantMarkdown(answer)}
+        </p>
+      )}
+      {status === "answered" && sources.length === 0 && !ticketContext && (
         <p className="text-xs text-muted">
           Resposta de conhecimento geral — nenhum trecho da documentação indexada foi usado.
         </p>
@@ -51,6 +58,17 @@ export function AssistantMessageView({
         <p className="text-xs text-muted">
           O histórico foi truncado para caber no contexto.
         </p>
+      )}
+      {ticketContext && (
+        <div className="rounded-md border border-divider px-2 py-1.5 text-xs">
+          <p className="font-mono text-muted">{ticketContext.jira_issue_key}</p>
+          {/* Conteúdo externo não confiável: texto simples, igual sources[].content (FR-045). */}
+          <p className="text-text">{ticketContext.subject}</p>
+          <p className="text-muted">
+            status: {ticketContext.status}
+            {ticketContext.squad_id ? ` · squad: ${ticketContext.squad_id}` : ""}
+          </p>
+        </div>
       )}
       <Sources sources={sources} />
     </div>
