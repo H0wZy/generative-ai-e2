@@ -207,7 +207,26 @@ pytest rag/tests
 
 Suíte após as correções: **249 passed** (245 + 4 casos novos cobrindo exatamente os três achados).
 
+## Correção pós-merge: CORS bloqueava o frontend (mesma data, sessão seguinte)
+
+9. **API sem `CORSMiddleware`.** `next dev` roda em `http://localhost:3000`; a API em `:8000` não devolvia `Access-Control-Allow-Origin`, e o navegador bloqueava toda chamada do assistente (`POST /assistant/ask`) antes mesmo de chegar ao backend — erro reportado pelo usuário ao testar a tela ao vivo, não coberto pela suíte pytest porque `TestClient` não aplica política de CORS do navegador. Adicionado `cors_origins` em `Settings` (`http://localhost:3000` e `:3100` por padrão, override via env comma-separated) e `CORSMiddleware` em `create_app`. Confirmado com `curl -X OPTIONS` real contra o container reconstruído: `access-control-allow-origin: http://localhost:3000` presente. Suíte: 249 passed (sem novo teste — mudança de infraestrutura HTTP, não de lógica de domínio; comportamento observável só por preflight real, que `TestClient` não simula).
+
+## T037a — board FRESH povoado (mesma data, via API real do Jira)
+
+Executado por script (não código do produto) contra `tcsgen.atlassian.net`, board `FRESH` (id `2`). Estado antes → depois:
+
+| Item | Antes | Depois |
+|---|---|---|
+| Issues com `customfield_10016` preenchido | 0/12 | 17/19 (as duas issues de teste do worker de ingestão, `FRESH-11`/`FRESH-12`, ficaram sem ponto e sem épico de propósito — são rastro real de execução, não item de backlog) |
+| Épicos | 1 (`FRESH-1`, sem nome) | 2 — `FRESH-1` "Automação Freshservice → Jira" (3 pts), `FRESH-13` "Assistente de IA (RAG) e Workspace Agile" (12 pts) |
+| Sprint ativo | `goal` vazio, 1 issue, 0 pts | `FRESH Sprint 3`, goal preenchido, 3 issues — `committed_points=5`, `scope_added_points=11` (as duas issues extras entraram após o início do sprint, então contam como escopo adicionado — validação ao vivo do cálculo corrigido no achado #6) |
+| Sprints fechados / velocidade | 0 / série vazia | 2 — `FRESH Sprint 1` (11 pts) e `FRESH Sprint 2` (18 pts, incluindo `FRESH-3` que já estava `Feito`) |
+| Backlog | 10 issues sem ponto/épico | 9 issues, todas com épico; pontos preenchidos onde fazem sentido |
+| `constraintType` / `max` de coluna | `"none"`, nenhuma coluna com `max` | **inalterado** — sem endpoint de escrita na REST API pública do Jira para `columnConfig`. Passo manual: Board Settings → Columns → habilitar limite → `max=1` na coluna "Fazendo" (já tem exatamente 1 card, mostra o indicador de limite atingido sem mover nada) |
+
+Verificado batendo direto nos três endpoints reais (`/api/v1/agile/sprint`, `/board`, `/backlog`) após reconstruir o container — `velocity: [{"FRESH Sprint 1": committed 11.0/completed 11.0}, {"FRESH Sprint 2": committed 18.0/completed 18.0}]`, burndown `actual` com o degrau exato no dia em que o escopo foi adicionado.
+
 ## Pendências conhecidas
 
-- **T037a — povoar o board FRESH no Jira.** Estimar issues em `customfield_10016`, vincular épicos, escrever objetivo do sprint, encerrar ao menos dois sprints e definir `max` numa coluna. Sem isso, sprint, burndown, velocidade e limite de WIP renderizam estados vazios corretos, porém vazios. **É trabalho de dado, não de código.**
+- **`max` de coluna (WIP limit) no board FRESH.** Só editável pela UI do Jira (Board Settings → Columns) — a REST API pública não expõe escrita de `columnConfig`. Recomendado `max=1` em "Fazendo".
 - **`ASSISTANT_ENABLED` segue `false`.** O número está publicado (0,72); ligar é decisão de quem opera, ciente de que o nível gratuito do provedor pode reter prompt.

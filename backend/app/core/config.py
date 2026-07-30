@@ -1,4 +1,4 @@
-from pydantic import AnyHttpUrl, PostgresDsn, SecretStr
+from pydantic import AnyHttpUrl, PostgresDsn, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,6 +6,19 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: PostgresDsn
+
+    # Browser calls the API cross-origin from the Next.js dev server. Only
+    # local dev ports by default — this API has no auth (see README, "Escopo
+    # do MVP"), so it is never meant to sit behind a browser-facing origin
+    # other than localhost.
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3100"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_cors_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     jira_base_url: AnyHttpUrl | None = None
     jira_email: str | None = None

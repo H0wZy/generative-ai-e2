@@ -139,6 +139,12 @@ Antes de qualquer exposição pública é necessário exigir credencial no
 boundary (API key validada contra variável de ambiente, ou invoker IAM
 restrito no Cloud Run) e autenticar o dashboard.
 
+**CORS restrito a origens locais.** `cors_origins` (`backend/app/core/config.py`)
+libera só `http://localhost:3000` e `http://localhost:3100` por padrão —
+suficiente para `next dev` local, e consistente com "sem autenticação só é
+aceitável localmente" acima. Hospedar exige apontar essa lista para o domínio
+real do frontend, nunca abrir para `*`.
+
 **Sem controle de acesso por titular.** Não existe conceito de dono ou de
 tenant. O `workflow_execution_id` é UUID v4, o que torna enumeração inviável
 por força bruta, mas isso é uma barreira de descoberta, não um controle de
@@ -244,12 +250,17 @@ projeção do Jira em tempo de requisição — não há cópia no Postgres. Sem
 em vez de erro; nada de Agile funciona offline, e isso é deliberado: cache de
 sprint mentiria numa demonstração ao vivo.
 
-**O board de demonstração ainda está vazio.** Medido em 2026-07-29 contra o
-board `FRESH`: nenhuma issue estimada em `customfield_10016` (todos os pontos
-vêm `null`), `goal` do sprint vazio, nenhum sprint encerrado (gráfico de
-velocidade sem série) e `constraintType: "none"` sem `max` em coluna alguma
-(limite de WIP não tem o que exibir). O código trata todos esses casos com
-estado vazio nomeado. Encher o board é trabalho de dado no Jira, não de código.
+**O board de demonstração foi povoado em 2026-07-29** contra o board `FRESH`
+real, via script contra a API do Jira (não código do produto — ver
+`evidence/evaluations/2026-07-29-plataforma-unificada-itsm-agile.md`): issues
+estimadas em `customfield_10016`, dois épicos (`FRESH-1`, `FRESH-13`) com
+issues vinculadas, `goal` gravado no sprint ativo, e dois sprints históricos
+fechados dando série real de velocidade (11 e 18 pontos). **Uma peça continua
+manual**: `constraintType: "none"` — a REST API pública do Jira não expõe
+escrita para `columnConfig` (limite de WIP por coluna só se define pela UI,
+em Board Settings → Columns). Recomendado: 1 no `max` da coluna "Fazendo",
+que hoje já tem exatamente 1 card, para exercitar o indicador de limite
+atingido (FR-028) sem precisar mover mais nada.
 
 **Assistente desligado por padrão (`ASSISTANT_ENABLED=false`).** Roda em modelo
 remoto no OpenRouter porque a máquina local não comporta modelo de geração
