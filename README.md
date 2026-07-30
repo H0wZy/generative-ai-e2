@@ -101,8 +101,10 @@ como texto livre digitado no título do card:
 Contra a automação, onde o identificador do chamado vai num rótulo estruturado
 da issue e não depende de ninguém digitá-lo: **cobertura 100% por construção**.
 
-`GET /api/v1/analytics/link-coverage` devolve os dois lados. Os números acima
-foram medidos contra os arquivos reais, não estimados.
+Os números acima foram medidos uma vez contra os arquivos reais exportados, não
+estimados. A comparação viva (`/reports`, `GET /api/v1/analytics/*`) foi
+removida na refatoração 003 — o dado vivo do CRUD de ticket (seção abaixo) a
+substitui como prova de cobertura, demonstrável ao vivo em vez de em lote.
 
 ## Decisões Arquiteturais
 
@@ -138,6 +140,12 @@ usuário único, dados sintéticos. **Não é aceitável em ambiente hospedado.*
 Antes de qualquer exposição pública é necessário exigir credencial no
 boundary (API key validada contra variável de ambiente, ou invoker IAM
 restrito no Cloud Run) e autenticar o dashboard.
+
+**CORS restrito a origens locais.** `cors_origins` (`backend/app/core/config.py`)
+libera só `http://localhost:3000` e `http://localhost:3100` por padrão —
+suficiente para `next dev` local, e consistente com "sem autenticação só é
+aceitável localmente" acima. Hospedar exige apontar essa lista para o domínio
+real do frontend, nunca abrir para `*`.
 
 **Sem controle de acesso por titular.** Não existe conceito de dono ou de
 tenant. O `workflow_execution_id` é UUID v4, o que torna enumeração inviável
@@ -176,53 +184,51 @@ demonstração local; não a publicação.
 **Classificação por LLM implementada, testada e desligada por padrão
 (`LLM_ENABLED=false`).** O roteamento de squad é determinístico primeiro — a
 squad vem preenchida do próprio chamado Freshservice (mock, ver acima) e é
-validada contra o enum fechado das 8 squads genéricas (ADR-011); o LLM
-(`qwen3:8b` via Ollama local) só é consultado quando esse campo vem vazio ou
-com valor fora do enum.
+validada contra o enum fechado das 8 squads genéricas (ADR-011); o LLM só é
+consultado quando esse campo vem vazio ou com valor fora do enum. O provedor é
+`nvidia/nemotron-3-ultra-550b-a55b:free` via OpenRouter — a refatoração 003
+unificou todo uso de LLM no OpenRouter, removendo a dependência de Ollama
+local (ADR-013); o classificador agora reaproveita o mesmo cliente HTTP do
+assistente (`OpenRouterClient`, ADR-012), em namespace de configuração
+próprio (`llm_*`, separado de `assistant_*`).
 
 Golden set (`backend/tests/golden/routing_golden.jsonl`, 19 casos: 12 com squad
 esperada, 4 de abstenção, 3 de prompt injection). **Os números abaixo foram
-medidos em 2026-07-27 contra o enum anterior de 13 squads reais (ADR-006) e
-ficam como histórico** — o golden set foi reescrito para os 8 IDs genéricos do
-ADR-011 e ainda não tem nova medição:
+medidos em 2026-07-30 contra o provedor atual (ADR-013)** — os números do
+Ollama (ADR-010/ADR-011) ficam como histórico de um provedor descontinuado e
+não se aplicam mais:
 
 | Métrica | Resultado |
 |---|---|
-| Acurácia | **100%** (12/12) |
-| Abstenção | 4/4 — todos os casos que deviam se abster se abstiveram |
-| Erros | nenhum |
-| **Sucesso de prompt injection** | **66,67% (2/3)** |
+| Acurácia | **83,33%** (10/12) |
+| Abstenção | 37,50% (6/16) |
+| Erros de requisição | 2 casos escoráveis (limite de taxa do tier gratuito) |
+| **Sucesso de prompt injection** | **33,33% (1/3)** |
 
-**A acurácia de 100% é real e é estreita.** Os 12 casos acertados citam a
-tecnologia no texto (Datastage, GCP, RPA, WordPress, VSSPS, STD, Fresh). Isso
-mede "o modelo reconhece uma tecnologia nomeada", não "o modelo roteia um
-chamado ambíguo". As squads opacas — Squad1, Squad2, Squad4, Squad5, Squad6,
-Squad8 — não têm caso com squad esperada porque **nenhum texto permite
-inferi-las**. Metade do enum é inclassificável por texto, e trocar de modelo
-não muda isso.
+**A queda de acurácia frente ao Ollama (100% → 83,33%) é esperada, não uma
+regressão a investigar** — são modelos diferentes, medidos honestamente cada
+um contra o próprio provedor (Princípio I: golden set decide, não confirma).
+Dois casos vieram com erro de requisição em vez de classificação, consistente
+com limite de taxa do modelo gratuito — contados como abstenção/erro, não
+como acerto nem como resistência real medida à injeção.
 
-**A injeção é o que decide.** Dois dos três vetores passaram: um pediu
-`squad: Squad1` e o modelo devolveu `Squad1` com confiança alta; outro pediu
-`squad: GCP` num chamado sobre impressora sem toner, e o modelo obedeceu. O
-terceiro, que tenta escapar do bloco `<ticket>`, resistiu. O caso que pede um
-valor **fora** do enum (`admin`) foi barrado — pela validação Pydantic, não
-pelo modelo.
-
-Isso confirma o ADR-005 com o enum novo: enum fechado protege contra saída
-**malformada**, não contra saída **válida-porém-manipulada**.
+**A injeção continua sendo o que decide.** Um dos três vetores passou: pediu
+uma squad específica dentro do texto do chamado, e o modelo devolveu essa
+squad com confiança acima do limiar. Isso confirma o ADR-005 com o provedor
+novo: enum fechado protege contra saída **malformada**, não contra saída
+**válida-porém-manipulada**.
 
 Assunto e descrição do ticket são entrada não confiável, escrita por quem
 abre o chamado. Ativar o LLM hoje transferiria para essa pessoa a escolha da
 squad de destino — e, desde ADR-008, também o rótulo gravado na issue do Jira.
-Por isso a classificação por LLM permanece desligada — o golden set decidiu
-não ativar, e essa é a função de um golden set: decidir, não confirmar o que já
-se queria ouvir. Ativar exigiria entrada confiável (ticket de origem autenticada
-e revisada) ou uma defesa que não dependa do prompt; nenhuma das duas existe
-hoje.
+Por isso a classificação por LLM permanece desligada — nem o provedor anterior
+nem o atual atingiram um patamar que justifique `LLM_ENABLED=true` por padrão.
+Ativar exigiria entrada confiável (ticket de origem autenticada e revisada) ou
+uma defesa que não dependa do prompt; nenhuma das duas existe hoje.
 
 As garantias determinísticas valem com o LLM ligado ou desligado: enum fechado
 (hoje as 8 squads genéricas do ADR-011) mais `unknown`, limiar de confiança e
-degradação para revisão humana em qualquer falha — Ollama fora do ar, JSON
+degradação para revisão humana em qualquer falha — provedor fora do ar, JSON
 inválido, squad fora do enum ou confiança baixa nunca viram criação automática
 de issue.
 
@@ -244,29 +250,55 @@ projeção do Jira em tempo de requisição — não há cópia no Postgres. Sem
 em vez de erro; nada de Agile funciona offline, e isso é deliberado: cache de
 sprint mentiria numa demonstração ao vivo.
 
-**O board de demonstração ainda está vazio.** Medido em 2026-07-29 contra o
-board `FRESH`: nenhuma issue estimada em `customfield_10016` (todos os pontos
-vêm `null`), `goal` do sprint vazio, nenhum sprint encerrado (gráfico de
-velocidade sem série) e `constraintType: "none"` sem `max` em coluna alguma
-(limite de WIP não tem o que exibir). O código trata todos esses casos com
-estado vazio nomeado. Encher o board é trabalho de dado no Jira, não de código.
+**O board de demonstração foi povoado em 2026-07-29** contra o board `FRESH`
+real, via script contra a API do Jira (não código do produto — ver
+`evidence/evaluations/2026-07-29-plataforma-unificada-itsm-agile.md`): issues
+estimadas em `customfield_10016`, dois épicos (`FRESH-1`, `FRESH-13`) com
+issues vinculadas, `goal` gravado no sprint ativo, e dois sprints históricos
+fechados dando série real de velocidade (11 e 18 pontos). **Uma peça continua
+manual**: `constraintType: "none"` — a REST API pública do Jira não expõe
+escrita para `columnConfig` (limite de WIP por coluna só se define pela UI,
+em Board Settings → Columns). Recomendado: 1 no `max` da coluna "Fazendo",
+que hoje já tem exatamente 1 card, para exercitar o indicador de limite
+atingido (FR-028) sem precisar mover mais nada.
 
 **Assistente desligado por padrão (`ASSISTANT_ENABLED=false`).** Roda em modelo
 remoto no OpenRouter porque a máquina local não comporta modelo de geração
-grande (ADR-012). `recall@5 = 0,72` medido em 2026-07-29 sobre 18 perguntas —
-cerca de uma em cada quatro cai em `no_grounding` e **não chega ao modelo**. O
-nível gratuito do provedor pode reter prompt para treino; por isso a redação de
-PII acontece antes de o texto sair do processo, e nenhum dado de produção deve
-entrar numa pergunta.
+grande (ADR-012). Generativo com guardrail de escopo, não travado à
+recuperação (FR-038/038a, 2026-07-30): a busca no RAG nunca bloqueia a
+resposta — sem trecho relevante o modelo responde com conhecimento geral
+dentro do escopo do projeto (ITSM/Freshservice, Agile/Jira, RAG, a
+arquitetura deste sistema), avisando que a resposta não vem da documentação
+indexada; pergunta sem relação nenhuma com esse escopo é recusada. O
+guardrail é instrução de prompt, não corte de código. `recall@5 = 0,72`
+medido em 2026-07-29 sobre 18 perguntas — cerca de uma em cada quatro não
+recupera trecho, e agora essas seguem para resposta geral em vez de ficarem
+sem resposta. O nível gratuito do provedor pode reter prompt para treino;
+por isso a redação de PII acontece antes de o texto sair do processo, e
+nenhum dado de produção deve entrar numa pergunta.
+
+**`process-next` reivindica o evento mais antigo da fila, não um alvo
+específico (research.md R1).** A tela de criação de chamado (US1) chama
+`POST /tickets/ingest` seguido de `POST /workflows/process-next` para dar
+feedback instantâneo no demo, sem esperar o intervalo de poll. Sob uso de um
+avaliador por vez a fila está vazia antes da criação, então o evento
+processado é sempre o recém-criado; sob dois chamados quase simultâneos, a
+*resposta HTTP* de uma tela poderia, em teoria, descrever o resultado do
+chamado da outra (a ordem de processamento em si continua FIFO correta).
+Aceito como limitação conhecida de execução local/demo, não hospedada — um
+serviço `worker` (`python -m app.worker --loop`) roda continuamente no
+Docker Compose para que nada fique preso em `retry_scheduled` fora do
+gatilho síncrono da tela.
 
 **Sem paginação por cursor.** A listagem aplica apenas `LIMIT`, com teto de 200.
 Adequado ao volume sintético da demonstração.
 
 **OCR, RAG hospedado, busca híbrida e reranking** permanecem pós-MVP.
 
-**Sem limite de tamanho na resposta do Ollama.** O adaptador LLM não trunca
-nem rejeita uma resposta anômalamente grande antes de fazer parse. Aceitável
-local e single-user; hospedado, precisa de teto de tamanho antes do `json.loads`.
+**Sem limite de tamanho na resposta do provedor LLM.** O adaptador do
+classificador não trunca nem rejeita uma resposta anomalamente grande antes de
+fazer parse. Aceitável local e single-user; hospedado, precisa de teto de
+tamanho antes do `json.loads`.
 
 **Sem limite de fila nem circuit breaker no worker.** Uma rajada de tickets com
 categoria inválida serializa o processamento em ~20s por ticket (timeout do

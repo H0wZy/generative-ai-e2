@@ -181,7 +181,8 @@ Qualquer usuário abre o Assistente e faz uma pergunta em linguagem natural sobr
 
 - **FR-036**: Usuários MUST poder enviar perguntas em linguagem natural e receber resposta em texto, acompanhada das fontes recuperadas da base de conhecimento.
 - **FR-037**: Cada fonte MUST ser inspecionável, exibindo o trecho recuperado e sua origem.
-- **FR-038**: Quando a recuperação não retornar material relevante, o assistente MUST declarar ausência de fundamento em vez de produzir resposta afirmativa.
+- **FR-038**: Quando a recuperação não retornar material relevante, o assistente MUST responder com seu conhecimento geral dentro do escopo do projeto, indicando de forma clara que a resposta não é fundamentada na documentação indexada.
+- **FR-038a**: Perguntas sem relação com o escopo do projeto (a automação ITSM/Freshservice, o workspace Agile/Jira, o pipeline RAG e a arquitetura deste sistema) MUST ser recusadas educadamente em vez de respondidas.
 - **FR-039**: O assistente MUST manter o contexto das mensagens anteriores dentro da mesma sessão.
 - **FR-040**: O contexto enviado ao provedor de modelo MUST ter campos de informação pessoal identificável removidos ou mascarados.
 - **FR-041**: O provedor e o modelo de linguagem MUST ser configuráveis por ambiente, sem alteração de código.

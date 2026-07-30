@@ -13,7 +13,7 @@ from app.integrations.llm import (
     PROMPT_VERSION,
     LLMClientError,
     LLMClientProtocol,
-    OllamaClient,
+    OpenRouterSquadClient,
     resolve_squad,
 )
 from app.repositories.workflows import WorkflowRepository
@@ -176,7 +176,7 @@ class ProcessingService:
         if not self._settings.llm_enabled:
             return decision
 
-        client = self._llm_client or OllamaClient(self._settings)
+        client = self._llm_client or OpenRouterSquadClient(self._settings)
         try:
             result = client.classify_squad(ticket.subject, ticket.description)
         except LLMClientError:

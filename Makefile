@@ -115,9 +115,6 @@ worker-once: $(PY) ## Claim and process one outbox event
 poll-once: $(PY) ## Poll Freshservice once for tickets updated since the last sync
 	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m app.worker --poll-once
 
-analytics-load: $(PY) ## Load the Power BI exports from examples/ into the analytics schema
-	cd $(BACKEND_DIR) && DATABASE_URL=$(DB_URL) $(PY) -m scripts.analytics_load ../examples
-
 ## ─── RAG ─────────────────────────────────────────────────────────────────────
 
 rag-sync: $(PY) ## Incrementally index docs/**/*.md into rag/data/knowledge.db

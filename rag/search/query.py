@@ -83,6 +83,21 @@ def _search_vec(
     ).fetchall()
 
 
+def _has_vec_table(conn: sqlite3.Connection) -> bool:
+    """O banco em uso tem a tabela virtual `embeddings` (vec0)?
+
+    `SQLITE_VEC_AVAILABLE` diz se a extensão carrega *neste* processo — não
+    diz se o `.db` conectado foi sincronizado com ela disponível. Um banco
+    sincronizado sem sqlite-vec só tem `embeddings_fallback`; consultar
+    `embeddings` nesse caso lançaria `OperationalError`, capturado como "sem
+    resultado" (research.md/db.py) — silenciosamente incorreto.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='embeddings'"
+    ).fetchone()
+    return row is not None
+
+
 def _search_fallback(
     conn: sqlite3.Connection,
     query_vector: list[float],
@@ -163,7 +178,7 @@ def search(
     prefetch = effective_limit * 4
 
     try:
-        if SQLITE_VEC_AVAILABLE:
+        if SQLITE_VEC_AVAILABLE and _has_vec_table(conn):
             raw_rows = _search_vec(conn, query_vec_bytes, prefetch)
             # Converter Row objects para tuplas uniformes
             rows = [

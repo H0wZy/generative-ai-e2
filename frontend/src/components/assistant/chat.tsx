@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiFetch } from "@/lib/api";
-import type { AssistantAnswer, AssistantMessage } from "@/lib/types";
+import { getOrCreateSessionId } from "@/lib/session";
+import type { AssistantAnswer, AssistantMessage, RetrievedSource, TicketRefSource } from "@/lib/types";
 
 import { AssistantMessageView, UserMessage } from "./message";
 
@@ -13,11 +14,49 @@ type Turn =
   | { kind: "user"; text: string }
   | { kind: "assistant"; answer: AssistantAnswer };
 
+interface ConversationMessage {
+  role: "user" | "assistant";
+  text: string;
+  sources: RetrievedSource[] | null;
+  ticket_context: TicketRefSource | null;
+}
+
 export function Chat() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // Vazio durante SSR (getOrCreateSessionId só resolve no navegador); o
+  // efeito abaixo o preenche antes de qualquer envio real acontecer.
+  const sessionIdRef = useRef("");
+
+  useEffect(() => {
+    const sessionId = getOrCreateSessionId();
+    sessionIdRef.current = sessionId;
+    if (!sessionId) return;
+
+    void apiFetch<{ messages: ConversationMessage[] }>("/api/v1/assistant/conversation", {
+      headers: { "X-Session-Id": sessionId },
+    }).then((result) => {
+      if (!result.ok) return;
+      setTurns(
+        result.data.messages.map((message): Turn =>
+          message.role === "user"
+            ? { kind: "user", text: message.text }
+            : {
+                kind: "assistant",
+                answer: {
+                  status: "answered",
+                  answer: message.text,
+                  sources: message.sources ?? [],
+                  truncated_history: false,
+                  ticket_context: message.ticket_context ?? null,
+                },
+              },
+        ),
+      );
+    });
+  }, []);
 
   // Histórico de sessão: vive no componente, não em servidor nem localStorage.
   const history: AssistantMessage[] = turns.flatMap<AssistantMessage>((turn) =>
@@ -40,7 +79,10 @@ export function Chat() {
 
     const result = await apiFetch<AssistantAnswer>("/api/v1/assistant/ask", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "X-Session-Id": sessionIdRef.current,
+      },
       body: JSON.stringify({ question, history: history.slice(-20) }),
     });
 
@@ -71,6 +113,7 @@ export function Chat() {
               answer={turn.answer.answer}
               sources={turn.answer.sources}
               truncatedHistory={turn.answer.truncated_history}
+              ticketContext={turn.answer.ticket_context}
             />
           ),
         )}

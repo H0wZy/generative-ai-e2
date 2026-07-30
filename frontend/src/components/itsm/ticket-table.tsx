@@ -6,13 +6,15 @@ import type { WorkflowListItem, WorkflowStatus } from "@/lib/types";
 
 import { ReprocessButton } from "./reprocess-button";
 
-const STATUS: Record<WorkflowStatus, { label: string; tone: TagTone; exception: boolean }> = {
-  pending: { label: "Pendente", tone: "neutral", exception: false },
-  processing: { label: "Processando", tone: "accent", exception: false },
-  completed: { label: "Concluído", tone: "success", exception: false },
-  retry_scheduled: { label: "Retry agendado", tone: "warning", exception: true },
-  failed: { label: "Falha", tone: "danger", exception: true },
-  needs_human_review: { label: "Revisão humana", tone: "danger", exception: true },
+// Trilho de status (FR-055): cor não é o único sinal — o `Tag` de texto ao
+// lado continua existindo, a borda é uma adição, não substituição.
+const STATUS: Record<WorkflowStatus, { label: string; tone: TagTone; rail: string }> = {
+  pending: { label: "Pendente", tone: "neutral", rail: "border-l-transparent" },
+  processing: { label: "Processando", tone: "accent", rail: "border-l-transparent" },
+  completed: { label: "Concluído", tone: "success", rail: "border-l-status-ok" },
+  retry_scheduled: { label: "Retry agendado", tone: "warning", rail: "border-l-status-warn" },
+  failed: { label: "Falha", tone: "danger", rail: "border-l-status-critical" },
+  needs_human_review: { label: "Revisão humana", tone: "danger", rail: "border-l-status-critical" },
 };
 
 const PRIORITY_TONE: Record<string, TagTone> = {
@@ -49,7 +51,7 @@ export function TicketTable({
         const status = STATUS[item.status];
         return (
           <Tr key={item.workflow_execution_id}>
-            <Td className={status.exception ? "border-l-2 border-l-link font-mono text-xs" : "font-mono text-xs"}>
+            <Td className={`border-l-[3px] font-mono text-xs ${status.rail}`}>
               <Link
                 href={`/itsm/${item.workflow_execution_id}?back=${encodeURIComponent(backHref)}`}
                 className="text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"

@@ -1,5 +1,6 @@
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { Tag } from "@/components/ui/tag";
+import { workItemStatusRail } from "@/lib/agile-status";
 import type { WorkItem } from "@/lib/types";
 
 // Ordem vem ranqueada do Jira e não é reordenada aqui (FR-026).
@@ -21,7 +22,9 @@ export function BacklogTable({ items }: { items: WorkItem[] }) {
     >
       {items.map((item) => (
         <Tr key={item.key}>
-          <Td className="text-muted tabular-nums">{item.rank}</Td>
+          <Td className={`border-l-[3px] text-muted tabular-nums ${workItemStatusRail(item)}`}>
+            {item.rank}
+          </Td>
           <Td className="font-mono text-xs text-muted">{item.key}</Td>
           <Td className="text-text">{item.title}</Td>
           <Td className="text-muted">{item.epic_name ?? "—"}</Td>

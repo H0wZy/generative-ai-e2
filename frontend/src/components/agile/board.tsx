@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Tag } from "@/components/ui/tag";
+import { workItemStatusRail } from "@/lib/agile-status";
 import type { BoardColumnView, WorkItem } from "@/lib/types";
 
 type DragState = { key: string; from: string } | null;
@@ -159,7 +160,7 @@ function BoardCard({
     <article
       draggable
       onDragStart={onDragStart}
-      className="flex flex-col gap-2 rounded-md bg-elevated p-2"
+      className={`flex flex-col gap-2 rounded-md border-l-[3px] bg-elevated p-2 ${workItemStatusRail(card)}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="font-mono text-xs text-muted">{card.key}</span>

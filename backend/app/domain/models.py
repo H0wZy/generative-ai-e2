@@ -36,6 +36,15 @@ class TicketIngestRequest(BaseModel):
     external_correlation_id: str | None = Field(default=None, max_length=128)
 
 
+class TicketUpdateRequest(BaseModel):
+    """PATCH /workflows/{id}/ticket — todos os campos opcionais (contracts/api-tickets.md)."""
+
+    subject: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=20_000)
+    priority: Literal["low", "medium", "high", "urgent"] | None = None
+    category: str | None = Field(default=None, max_length=80)
+
+
 class IngestResponse(BaseModel):
     workflow_execution_id: UUID
     internal_correlation_id: UUID
@@ -82,6 +91,7 @@ class WorkflowListItem(BaseModel):
     reprocess_eligible: bool
     ticket: WorkflowTicketSummary
     updated_at: datetime
+    resolved_at: datetime | None = None
 
 
 class WorkflowListResponse(BaseModel):
@@ -141,6 +151,7 @@ class WorkflowDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     reprocess_eligible: bool
+    resolved_at: datetime | None = None
 
 
 class MetricsResponse(BaseModel):

@@ -1,33 +1,33 @@
 @import "tailwindcss";
 
-/* Tokens Nocturne (tema escuro = padrão). Fonte: specs/002-unified-itsm-agile-ui/research.md R9 */
+/* Tokens near-black + brass (tema escuro = padrão). Fonte: specs/003-unified-ops-refresh/contracts/ui-nav.md R6 */
 :root {
-  --color-bg: #161826;
-  --color-surface: #232532;
-  --color-text: #e9e9ed;
-  --color-accent: #9184d9;
+  --color-bg: #141414; /* texto #edebe6 sobre ele: 15.46:1 */
+  --color-surface: #1c1c1c; /* texto #edebe6 sobre ela: 14.30:1 */
+  --color-text: #edebe6;
+  --color-accent: #c9a227; /* brass — uso decorativo (traço de gráfico), não é par texto/fundo */
   --color-accent-2: #a7a1db;
-  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  --color-divider: color-mix(in srgb, #333331 16%, transparent);
 
-  --color-neutral-100: #f3f5fe;
-  --color-neutral-200: #e4e7f5;
-  --color-neutral-300: #cfd3e5;
-  --color-neutral-400: #b2b6ca;
-  --color-neutral-500: #9397ab;
-  --color-neutral-600: #75798c;
-  --color-neutral-700: #595d6c;
-  --color-neutral-800: #3f424d;
-  --color-neutral-900: #292b31;
+  --color-neutral-100: #f7f5f2;
+  --color-neutral-200: #e8e5e0;
+  --color-neutral-300: #d3cfc7;
+  --color-neutral-400: #b0aca3;
+  --color-neutral-500: #8f8b82;
+  --color-neutral-600: #726e66;
+  --color-neutral-700: #58554e;
+  --color-neutral-800: #3c3a35;
+  --color-neutral-900: #27251f;
 
-  --color-accent-100: #f5f4ff;
-  --color-accent-200: #e7e5fe;
-  --color-accent-300: #d2cefd;
-  --color-accent-400: #b5abfc;
-  --color-accent-500: #968ae0;
-  --color-accent-600: #796cbf;
-  --color-accent-700: #5d5294;
-  --color-accent-800: #423a6a;
-  --color-accent-900: #2b2741;
+  --color-accent-100: #faf3df;
+  --color-accent-200: #f0e2b8;
+  --color-accent-300: #e0c47f;
+  --color-accent-400: #d3ac52;
+  --color-accent-500: #c9a227;
+  --color-accent-600: #a3821f;
+  --color-accent-700: #7d6418;
+  --color-accent-800: #5c4a12;
+  --color-accent-900: #3d310c;
 
   --color-accent-2-100: #f5f4ff;
   --color-accent-2-200: #e7e5fe;
@@ -39,18 +39,23 @@
   --color-accent-2-800: #423e5d;
   --color-accent-2-900: #2b293a;
 
+  /* Trilho de status (FR-055) — mesmo valor nos dois temas, não são cor de
+     marca e sim sinal funcional; usados como border-l-[3px], nunca como
+     par texto/fundo, então a régua de 4.5:1 não se aplica a eles. */
+  --color-status-ok: #5e9c76;
+  --color-status-warn: #d98a3d;
+  --color-status-critical: #c24a3f;
+
   /* Tokens semânticos — viram com o tema. Existem porque um degrau fixo da
-     rampa não passa AA nos dois temas: neutral-600 dá 4.31:1 sobre branco e
-     3.52:1 sobre a superfície escura; accent-400 dá 1.86:1 sobre o fundo
-     claro. Medido, não estimado (FR-008, SC-005). */
-  --color-muted: var(--color-neutral-500); /* 5.25:1 na superfície escura */
-  --color-link: var(--color-accent-300); /* 10.1:1 */
-  --color-focus: var(--color-accent-400); /* 8.6:1 sobre o fundo escuro */
-  --color-primary: var(--color-accent-700); /* neutral-100 sobre ele: 6.2:1 */
-  --color-primary-hover: var(--color-accent-800); /* 9.4:1 */
+     rampa não passa AA nos dois temas. Medido, não estimado (FR-008, SC-005). */
+  --color-muted: var(--color-neutral-500); /* 5.02:1 na superfície escura */
+  --color-link: var(--color-accent-300); /* 10.04:1 na superfície escura */
+  --color-focus: var(--color-accent-400); /* 8.59:1 sobre o fundo escuro */
+  --color-primary: var(--color-accent-700); /* neutral-100 sobre ele: 5.20:1 */
+  --color-primary-hover: var(--color-accent-800); /* neutral-100 sobre ele: 7.90:1 */
   /* Superfície levemente elevada (hover de item, trilho, esqueleto). Precisa
      virar com o tema: a rampa neutral não vira, e um bloco escuro sob texto
-     escuro no tema claro dá 2,67:1 — medido no navegador. */
+     escuro no tema claro reprovaria AA. */
   --color-elevated: var(--color-neutral-900);
 
   --space-1: 2.8px;
@@ -69,18 +74,18 @@
   --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
 }
 
-/* Tema claro. Divergência consciente do protótipo (FR-008, research.md R9):
-   texto secundário e ícone inativo usam --color-neutral-600 (~4.6:1 sobre
-   branco) ou mais escuro em vez de --color-neutral-400 (~2.2:1, reprova AA). */
+/* Tema claro. Divergência consciente do protótipo (FR-008, contracts/ui-nav.md):
+   texto secundário e ícone inativo usam --color-neutral-700 (7.44:1 sobre
+   branco) ou mais escuro em vez de degraus mais claros da rampa, que reprovam AA. */
 :root[data-theme="light"] {
-  --color-bg: #f3f3f8;
-  --color-surface: #ffffff;
-  --color-text: #191a24;
-  --color-divider: color-mix(in srgb, #191a24 12%, transparent);
+  --color-bg: #f7f5f1; /* near-white quente, texto #1a1815 sobre ele: 16.27:1 */
+  --color-surface: #ffffff; /* texto #1a1815 sobre ela: 17.72:1 */
+  --color-text: #1a1815;
+  --color-divider: color-mix(in srgb, #1a1815 12%, transparent);
 
-  --color-muted: var(--color-neutral-700); /* 6.55:1 sobre branco */
-  --color-link: var(--color-accent-700); /* 6.77:1 */
-  --color-focus: var(--color-accent-700); /* 6.12:1 sobre o fundo claro */
+  --color-muted: var(--color-neutral-700); /* 7.44:1 sobre branco */
+  --color-link: var(--color-accent-700); /* 5.66:1 sobre branco */
+  --color-focus: var(--color-accent-700); /* 5.20:1 sobre o fundo claro */
   --color-elevated: var(--color-neutral-200);
 
   --shadow-sm: 0 1px 2px rgba(30, 30, 50, 0.06), 0 0 0 1px rgba(30, 30, 50, 0.08);
@@ -100,6 +105,9 @@
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
   --color-elevated: var(--color-elevated);
+  --color-status-ok: var(--color-status-ok);
+  --color-status-warn: var(--color-status-warn);
+  --color-status-critical: var(--color-status-critical);
 
   --color-neutral-100: var(--color-neutral-100);
   --color-neutral-200: var(--color-neutral-200);

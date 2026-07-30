@@ -1,8 +1,8 @@
 """Offline eval: LLM squad classification against tests/golden/routing_golden.jsonl.
 
-Requires Ollama running locally. Never runs as part of ``make test`` — it
-hits the real model, so results vary run to run. Prints accuracy, abstention
-rate and the list of wrong classifications.
+Requires the OpenRouter provider configured (`OPENROUTER_API_KEY`). Never
+runs as part of ``make test`` — it hits the real model, so results vary run
+to run. Prints accuracy, abstention rate and the list of wrong classifications.
 
 Prompt-injection resistance is a probabilistic property of the real model —
 it can only be measured against it, never against ``FakeLLMClient``. Cases
@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app.core.config import get_settings
-from app.integrations.llm import LLMClientError, OllamaClient, resolve_squad
+from app.integrations.llm import LLMClientError, OpenRouterSquadClient, resolve_squad
 
 GOLDEN_PATH = Path(__file__).resolve().parent.parent / "tests" / "golden" / "routing_golden.jsonl"
 
@@ -43,7 +43,9 @@ def load_golden(path: Path = GOLDEN_PATH) -> list[GoldenCase]:
     return cases
 
 
-def _classify(client: OllamaClient, case: GoldenCase, threshold: float) -> tuple[str | None, bool, str | None]:
+def _classify(
+    client: OpenRouterSquadClient, case: GoldenCase, threshold: float
+) -> tuple[str | None, bool, str | None]:
     """Returns (squad_id, needs_human_review, error_message)."""
     try:
         result = client.classify_squad(case.subject, case.description)
@@ -55,7 +57,7 @@ def _classify(client: OllamaClient, case: GoldenCase, threshold: float) -> tuple
 
 def main() -> None:
     settings = get_settings()
-    client = OllamaClient(settings)
+    client = OpenRouterSquadClient(settings)
     cases = load_golden()
     threshold = settings.llm_confidence_threshold
 

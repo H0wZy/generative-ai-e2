@@ -25,7 +25,6 @@ from app.integrations.jira_agile import FakeJiraAgileClient
 from app.integrations.openrouter import FakeAssistantClient
 from app.integrations.rag_search import FakeRagSearchClient
 from app.repositories.schema import Base
-from app.services.analytics.tables import ANALYTICS_SCHEMA, analytics_metadata
 
 
 # ---------------------------------------------------------------------------
@@ -51,12 +50,8 @@ def test_database_url() -> str:
 @pytest.fixture(scope="session")
 def engine(test_database_url: str):
     eng = make_engine(test_database_url)
-    with eng.begin() as conn:
-        conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {ANALYTICS_SCHEMA}"))
     Base.metadata.create_all(eng)
-    analytics_metadata.create_all(eng)
     yield eng
-    analytics_metadata.drop_all(eng)
     Base.metadata.drop_all(eng)
     eng.dispose()
 
@@ -67,10 +62,9 @@ def engine(test_database_url: str):
 
 # Tables in dependency order so FK constraints don't break TRUNCATE CASCADE
 _TABLES = [
-    "analytics.chamados_abertos",
-    "analytics.chamados_fechados",
-    "analytics.jira_cards",
     "sync_state",
+    "assistant_messages",
+    "assistant_conversations",
     "audit_logs",
     "jira_issue_links",
     "outbox_events",

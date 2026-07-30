@@ -207,7 +207,57 @@ pytest rag/tests
 
 Suíte após as correções: **249 passed** (245 + 4 casos novos cobrindo exatamente os três achados).
 
+## Correção pós-merge: CORS bloqueava o frontend (mesma data, sessão seguinte)
+
+9. **API sem `CORSMiddleware`.** `next dev` roda em `http://localhost:3000`; a API em `:8000` não devolvia `Access-Control-Allow-Origin`, e o navegador bloqueava toda chamada do assistente (`POST /assistant/ask`) antes mesmo de chegar ao backend — erro reportado pelo usuário ao testar a tela ao vivo, não coberto pela suíte pytest porque `TestClient` não aplica política de CORS do navegador. Adicionado `cors_origins` em `Settings` (`http://localhost:3000` e `:3100` por padrão, override via env comma-separated) e `CORSMiddleware` em `create_app`. Confirmado com `curl -X OPTIONS` real contra o container reconstruído: `access-control-allow-origin: http://localhost:3000` presente. Suíte: 249 passed (sem novo teste — mudança de infraestrutura HTTP, não de lógica de domínio; comportamento observável só por preflight real, que `TestClient` não simula).
+
+## T037a — board FRESH povoado (mesma data, via API real do Jira)
+
+Executado por script (não código do produto) contra `tcsgen.atlassian.net`, board `FRESH` (id `2`). Estado antes → depois:
+
+| Item | Antes | Depois |
+|---|---|---|
+| Issues com `customfield_10016` preenchido | 0/12 | 17/19 (as duas issues de teste do worker de ingestão, `FRESH-11`/`FRESH-12`, ficaram sem ponto e sem épico de propósito — são rastro real de execução, não item de backlog) |
+| Épicos | 1 (`FRESH-1`, sem nome) | 2 — `FRESH-1` "Automação Freshservice → Jira" (3 pts), `FRESH-13` "Assistente de IA (RAG) e Workspace Agile" (12 pts) |
+| Sprint ativo | `goal` vazio, 1 issue, 0 pts | `FRESH Sprint 3`, goal preenchido, 3 issues — `committed_points=5`, `scope_added_points=11` (as duas issues extras entraram após o início do sprint, então contam como escopo adicionado — validação ao vivo do cálculo corrigido no achado #6) |
+| Sprints fechados / velocidade | 0 / série vazia | 2 — `FRESH Sprint 1` (11 pts) e `FRESH Sprint 2` (18 pts, incluindo `FRESH-3` que já estava `Feito`) |
+| Backlog | 10 issues sem ponto/épico | 9 issues, todas com épico; pontos preenchidos onde fazem sentido |
+| `constraintType` / `max` de coluna | `"none"`, nenhuma coluna com `max` | **inalterado** — sem endpoint de escrita na REST API pública do Jira para `columnConfig`. Passo manual: Board Settings → Columns → habilitar limite → `max=1` na coluna "Fazendo" (já tem exatamente 1 card, mostra o indicador de limite atingido sem mover nada) |
+
+Verificado batendo direto nos três endpoints reais (`/api/v1/agile/sprint`, `/board`, `/backlog`) após reconstruir o container — `velocity: [{"FRESH Sprint 1": committed 11.0/completed 11.0}, {"FRESH Sprint 2": committed 18.0/completed 18.0}]`, burndown `actual` com o degrau exato no dia em que o escopo foi adicionado.
+
+## Assistente ligado (`ASSISTANT_ENABLED=true`): dois bugs reais na busca (2026-07-30)
+
+Ao testar a tela do assistente ao vivo (`next dev` em `:3000`), toda pergunta voltava `status: "unavailable"`, `sources: []`. Investigado de fora para dentro:
+
+10. **`rag-search` nunca tinha subido nesta sessão.** `docker ps` não listava o container — `docker-compose.yml` não tem `depends_on` da API para ele de propósito (ADR: imagem multi-GB com torch), então nada o sobe sozinho. `docker compose up -d --build rag-search` resolve, mas expôs o próximo problema.
+
+11. **`journal_mode=WAL` incompatível com o bind mount `:ro`.** `rag/db.py:get_connection()` fixava `PRAGMA journal_mode=WAL` sem condição. O compose monta `./rag/data:/app/rag/data:ro` — e WAL exige sidecar `-wal`/`-shm` gravável mesmo para **leitura**. Todo `/health` e `/search` batia em `sqlite3.OperationalError: unable to open database file`. Sintoma no assistente: `unavailable` com `sources: []` (busca fora do ar, achado #3 da revisão de código fazendo exatamente o que devia). Corrigido: `journal_mode=DELETE` em `get_connection()` (o banco é somente-leitura para quem consome — não há motivo pra WAL) e convertido o `knowledge.db` existente com `PRAGMA journal_mode=DELETE;` direto no arquivo, sem precisar resincronizar.
+
+12. **`search()` decidia sqlite-vec vs. fallback pela capacidade do processo, não pelo conteúdo do banco.** `SQLITE_VEC_AVAILABLE` diz se a extensão carrega *neste* processo. O `knowledge.db` existente foi sincronizado num ambiente sem sqlite-vec disponível — só tem `embeddings_fallback` (110 linhas), nunca teve a tabela virtual `embeddings`. No container `rag-search`, a extensão carrega (`SQLITE_VEC_AVAILABLE=True`), então `search()` tentava `SELECT ... FROM embeddings` contra uma tabela inexistente, capturava o `OperationalError` — mesmo bloco `except` que trata "sem evidência" — e devolvia lista vazia sempre, para qualquer pergunta, com qualquer `max_distance`. Indistinguível de `no_grounding` legítimo até eu forçar `max_distance=2.0` (deveria trazer qualquer coisa) e ainda ver `total: 0`. Corrigido: `_has_vec_table(conn)` checa `sqlite_master` antes de escolher o caminho vec0; só usa `embeddings` se a tabela **existir no banco conectado**, não só se a extensão carregar no processo.
+
+Depois dos dois fixes, mesma pergunta ("Por que a classificação por LLM está desligada por padrão?") passou a retornar 5 trechos reais (distância 0,479–0,511, bem na faixa calibrada do limiar) e o pipeline completo respondeu `status: "answered"` com o modelo remoto real (OpenRouter), admitindo honestamente que os trechos recuperados não cobrem a pergunta específica — comportamento correto, não alucinado.
+
+Suíte após os fixes: `rag/tests` 51 passed (sem teste novo — os dois bugs são de integração processo↔arquivo de banco↔mount do Docker, não de lógica pura testável em `:memory:`; a suíte existente já usa `:memory:` e nunca exercita `:ro` nem um banco pré-sincronizado sem sqlite-vec).
+
+## Mudança de requisito: FR-038 deixa de bloquear a resposta (2026-07-30)
+
+Pedido do usuário ao ver o comportamento antigo ao vivo: "quero que seja possível responder qualquer coisa (com guardrail do escopo do projeto) e só consultar RAG se precisar" — a leitura de FR-038 original ("sem trecho relevante, o assistente MUST declarar ausência de fundamento em vez de produzir resposta afirmativa") travava o assistente num modo pergunta-e-resposta-documental, não no assistente generativo que o produto queria demonstrar.
+
+Duas arquiteturas possíveis foram apresentadas: (a) busca sempre roda, nunca bloqueia — resultado (vazio ou não) vai pro prompt, guardrail de escopo e "avise quando não é da documentação" são instrução de prompt, funciona com qualquer modelo; (b) tool-calling real, o modelo decide se chama `search_docs()`. Escolhida (a): mais barata (a busca já é local e rápida, não há razão pra evitá-la), e não depende do modelo free tier atual (`nvidia/nemotron-3-ultra-550b-a55b:free`) suportar function-calling de forma confiável.
+
+**spec.md**: FR-038 reescrito (responde com conhecimento geral, avisando que não é da documentação, em vez de recusar) e adicionado FR-038a (recusar pergunta fora do escopo do projeto).
+
+**Código**: `AssistantStatus` perde `no_grounding` (nunca mais alcançável — o pipeline não tem mais corte algum antes de chamar o modelo, só `disabled` continua saindo cedo). `RagUnavailable` dobra para o mesmo caminho de busca vazia (`sources: []`, segue pro modelo) — deixa de ser um status próprio; continua existindo como tipo de exceção só para permitir logar/alertar falha de infra sem confundir com resultado vazio legítimo. `_SYSTEM_PROMPT` reescrito: define o escopo do assistente (ITSM/Freshservice, Agile/Jira, RAG, arquitetura do sistema), instrui recusa educada fora dele, e instrui resposta por conhecimento geral quando não há trecho — o guardrail é prompt, não corte de código.
+
+**Frontend**: removida a faixa de `no_grounding` em `message.tsx`; adicionada uma nota discreta (`text-muted`) quando `status === "answered"` e `sources.length === 0`, avisando que a resposta é de conhecimento geral — mantém a transparência da FR-043/038 sem bloquear.
+
+**Testes**: os dois testes que afirmavam o corte (`test_empty_retrieval_returns_no_grounding_without_calling_the_model`, `test_rag_down_is_unavailable_not_no_grounding`) reescritos para o comportamento oposto — modelo é chamado, `status: "answered"`, `sources: []`. Suíte: 249 passed.
+
+Verificado ao vivo: a mesma pergunta que antes voltava `no_grounding` (achado #12 acima, já corrigido) agora responde com o modelo, citando os 5 trechos reais quando relevantes.
+
 ## Pendências conhecidas
 
-- **T037a — povoar o board FRESH no Jira.** Estimar issues em `customfield_10016`, vincular épicos, escrever objetivo do sprint, encerrar ao menos dois sprints e definir `max` numa coluna. Sem isso, sprint, burndown, velocidade e limite de WIP renderizam estados vazios corretos, porém vazios. **É trabalho de dado, não de código.**
-- **`ASSISTANT_ENABLED` segue `false`.** O número está publicado (0,72); ligar é decisão de quem opera, ciente de que o nível gratuito do provedor pode reter prompt.
+- **`max` de coluna (WIP limit) no board FRESH.** Só editável pela UI do Jira (Board Settings → Columns) — a REST API pública não expõe escrita de `columnConfig`. Recomendado `max=1` em "Fazendo".
+- **Cobertura de teste para o par WAL/`:ro`.** Os achados #11 e #12 só apareceram testando o container real; não há teste automatizado que monte um SQLite em modo somente-leitura ou que simule um banco sincronizado sem sqlite-vec. Se o `Dockerfile` ou o mount mudarem, o mesmo bug pode voltar sem a suíte acusar.
+- **Guardrail de escopo (FR-038a) não tem teste automatizado.** É instrução de prompt, não código — validar exige perguntar algo fora de escopo pro modelo real e ler a resposta; não dá pra travar num `assert` determinístico com o `FakeAssistantClient`.

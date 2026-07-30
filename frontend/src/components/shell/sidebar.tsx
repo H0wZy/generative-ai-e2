@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { NAV, workspaceFor } from "@/lib/nav";
+import { NAV, useActiveWorkspace } from "@/lib/nav";
 
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
@@ -13,7 +13,7 @@ import { WorkspaceSwitcher } from "./workspace-switcher";
 // Só o `usePathname` roda no cliente; o conteúdo é estático.
 export function Sidebar() {
   const pathname = usePathname();
-  const workspace = workspaceFor(pathname);
+  const workspace = useActiveWorkspace(pathname);
 
   return (
     <nav

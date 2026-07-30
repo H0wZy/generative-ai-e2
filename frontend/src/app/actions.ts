@@ -70,3 +70,46 @@ export async function reprocessWorkflow(
     message: `Reprocessamento agendado. Correlation id: ${body?.workflow_execution_id ?? id}`,
   }
 }
+
+export type ResolveState = {
+  status: 'success' | 'not_found' | 'error'
+  message: string
+}
+
+export async function resolveTicket(
+  _prev: ResolveState | null,
+  formData: FormData
+): Promise<ResolveState> {
+  const id = formData.get('id')
+  if (typeof id !== 'string' || !id) {
+    return { status: 'error', message: 'ID do workflow ausente.' }
+  }
+
+  let res: Response
+  try {
+    res = await fetch(`${API_URL}/api/v1/workflows/${id}/resolve`, {
+      method: 'POST',
+      cache: 'no-store',
+    })
+  } catch {
+    return {
+      status: 'error',
+      message: 'Não foi possível contatar a API para concluir o chamado.',
+    }
+  }
+
+  if (res.status === 404) {
+    return { status: 'not_found', message: `Workflow ${id} não encontrado.` }
+  }
+
+  if (!res.ok) {
+    return {
+      status: 'error',
+      message: `Erro inesperado da API ao concluir (HTTP ${res.status}).`,
+    }
+  }
+
+  revalidatePath('/itsm')
+  revalidatePath(`/itsm/${id}`)
+  return { status: 'success', message: 'Chamado concluído.' }
+}

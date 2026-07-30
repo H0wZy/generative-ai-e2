@@ -7,9 +7,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.domain.models import WorkflowStatus
+
 AssistantStatus = Literal[
     "answered",
-    "no_grounding",
     "rate_limited",
     "unavailable",
     "timeout",
@@ -37,8 +38,20 @@ class RetrievedSource(BaseModel):
     content: str
 
 
+class TicketRefSource(BaseModel):
+    """Contexto de chamado citado na pergunta (data-model.md §4). Não é uma
+    tabela — derivado a cada pergunta a partir de ``WorkflowDetail``.
+    """
+
+    jira_issue_key: str
+    status: WorkflowStatus
+    subject: str  # conteúdo externo — mesma regra de RetrievedSource.content
+    squad_id: str | None
+
+
 class AssistantAnswer(BaseModel):
     status: AssistantStatus
     answer: str | None
     sources: list[RetrievedSource]
     truncated_history: bool
+    ticket_context: TicketRefSource | None = None
