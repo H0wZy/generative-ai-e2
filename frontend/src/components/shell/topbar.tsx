@@ -4,8 +4,6 @@ import { usePathname } from "next/navigation";
 
 import { sectionLabel, useActiveWorkspace } from "@/lib/nav";
 
-import { ThemeToggle } from "./theme-toggle";
-
 const WORKSPACE_LABEL = { itsm: "ITSM", agile: "Agile" } as const;
 
 // Cliente pelo mesmo motivo da sidebar: o título vem do pathname.
@@ -20,7 +18,6 @@ export function Topbar() {
         <span aria-hidden> · </span>
         {WORKSPACE_LABEL[workspace]}
       </h1>
-      <ThemeToggle />
     </header>
   );
 }

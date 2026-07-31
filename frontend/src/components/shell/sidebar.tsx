@@ -44,18 +44,18 @@ export function Sidebar() {
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-9 items-center justify-between gap-2 rounded-md px-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
                   active
-                    ? "bg-accent-800 text-neutral-100"
+                    ? "bg-primary text-primary-foreground"
                     : "text-muted hover:bg-elevated hover:text-text"
                 }`}
               >
                 {item.label}
                 {!item.implemented && (
-                  // No item ativo o fundo é escuro nos dois temas, então o
-                  // selo herda a cor do item em vez de usar `text-muted` —
-                  // que no tema claro daria 1,57:1 sobre o roxo.
+                  // No item ativo o fundo é claro (bg-primary), então o selo
+                  // usa a cor de texto do próprio item em vez de `text-muted`
+                  // — que sobre bg-primary reprovaria contraste.
                   <span
                     className={`text-[10px] uppercase tracking-wide ${
-                      active ? "text-neutral-300" : "text-muted"
+                      active ? "text-primary-foreground/70" : "text-muted"
                     }`}
                   >
                     em breve

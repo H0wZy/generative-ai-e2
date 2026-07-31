@@ -24,7 +24,7 @@ export function WorkspaceSwitcher({ current }: { current: Workspace }) {
             href={option.href}
             aria-current={active ? "true" : undefined}
             className={`rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-              active ? "bg-primary text-neutral-100" : "text-muted hover:text-text"
+              active ? "bg-primary text-primary-foreground" : "text-muted hover:text-text"
             }`}
           >
             {option.label}
