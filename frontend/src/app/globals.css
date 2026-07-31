@@ -155,6 +155,145 @@ body {
   color: var(--color-text);
 }
 
+/* ---------------------------------------------------------------------------
+   Tema da tela /assistant (v0.app) — tokens com prefixo `v0-`, escopados sob
+   `.v0-assistant`, nunca em `:root`. Vários nomes (primary, muted, accent,
+   radius-sm/md/lg, font-sans) colidiriam com o tema ink/brass acima se
+   entrassem no mesmo namespace — o prefixo existe só para isso, não é
+   convenção do resto do projeto. Escopo combinado (spec 003, "só o
+   Assistente por agora").
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-v0-background: var(--v0-background);
+  --color-v0-foreground: var(--v0-foreground);
+  --color-v0-card: var(--v0-card);
+  --color-v0-card-foreground: var(--v0-card-foreground);
+  --color-v0-popover: var(--v0-popover);
+  --color-v0-popover-foreground: var(--v0-popover-foreground);
+  --color-v0-primary: var(--v0-primary);
+  --color-v0-primary-foreground: var(--v0-primary-foreground);
+  --color-v0-secondary: var(--v0-secondary);
+  --color-v0-secondary-foreground: var(--v0-secondary-foreground);
+  --color-v0-muted: var(--v0-muted);
+  --color-v0-muted-foreground: var(--v0-muted-foreground);
+  --color-v0-accent: var(--v0-accent);
+  --color-v0-accent-foreground: var(--v0-accent-foreground);
+  --color-v0-destructive: var(--v0-destructive);
+  --color-v0-border: var(--v0-border);
+  --color-v0-input: var(--v0-input);
+  --color-v0-ring: var(--v0-ring);
+  --color-v0-sidebar: var(--v0-sidebar);
+  --color-v0-sidebar-foreground: var(--v0-sidebar-foreground);
+  --color-v0-sidebar-primary: var(--v0-sidebar-primary);
+  --color-v0-sidebar-primary-foreground: var(--v0-sidebar-primary-foreground);
+  --color-v0-sidebar-accent: var(--v0-sidebar-accent);
+  --color-v0-sidebar-accent-foreground: var(--v0-sidebar-accent-foreground);
+  --color-v0-sidebar-border: var(--v0-sidebar-border);
+  --color-v0-sidebar-ring: var(--v0-sidebar-ring);
+
+  --radius-v0-sm: calc(var(--v0-radius) * 0.6);
+  --radius-v0-md: calc(var(--v0-radius) * 0.8);
+  --radius-v0-lg: var(--v0-radius);
+  --radius-v0-xl: calc(var(--v0-radius) * 1.4);
+  --radius-v0-2xl: calc(var(--v0-radius) * 1.8);
+  --radius-v0-3xl: calc(var(--v0-radius) * 2.2);
+
+  --font-v0-sans: var(--v0-font-sans);
+  --font-v0-mono: var(--v0-font-mono);
+}
+
+/* Dark-only por design (o v0 export não tem variante clara) — valores fixos,
+   sem depender de `data-theme` do resto do app. */
+.v0-assistant {
+  color-scheme: dark;
+  /* Neutro puro (preto + branco), igual ao preview do v0.app — sem acento
+     colorido. */
+  --v0-background: oklch(0.145 0 0);
+  --v0-foreground: oklch(0.985 0 0);
+  --v0-card: oklch(0.205 0 0);
+  --v0-card-foreground: oklch(0.985 0 0);
+  --v0-popover: oklch(0.16 0 0);
+  --v0-popover-foreground: oklch(0.985 0 0);
+  --v0-primary: oklch(0.922 0 0);
+  --v0-primary-foreground: oklch(0.205 0 0);
+  --v0-secondary: oklch(0.269 0 0);
+  --v0-secondary-foreground: oklch(0.985 0 0);
+  --v0-muted: oklch(0.269 0 0);
+  --v0-muted-foreground: oklch(0.708 0 0);
+  --v0-accent: oklch(0.269 0 0);
+  --v0-accent-foreground: oklch(0.985 0 0);
+  --v0-destructive: oklch(0.704 0.191 22.216);
+  --v0-border: oklch(1 0 0 / 10%);
+  --v0-input: oklch(1 0 0 / 15%);
+  --v0-ring: oklch(0.556 0 0);
+  --v0-radius: 0.625rem;
+  --v0-sidebar: oklch(0.205 0 0);
+  --v0-sidebar-foreground: oklch(0.985 0 0);
+  --v0-sidebar-primary: oklch(0.922 0 0);
+  --v0-sidebar-primary-foreground: oklch(0.205 0 0);
+  --v0-sidebar-accent: oklch(0.269 0 0);
+  --v0-sidebar-accent-foreground: oklch(0.985 0 0);
+  --v0-sidebar-border: oklch(1 0 0 / 10%);
+  --v0-sidebar-ring: oklch(0.556 0 0);
+  --v0-font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --v0-font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  background: var(--v0-background);
+  color: var(--v0-foreground);
+}
+
+/* Scrollbar fina — estilo Claude/Linear, só dentro da tela /assistant. */
+.v0-assistant .v0-scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: #2f2f2f transparent;
+}
+.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-thumb {
+  background-color: #2f2f2f;
+  border-radius: 9999px;
+}
+.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background-color: #404040;
+}
+
+@keyframes v0-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.v0-animate-message-in {
+  animation: v0-message-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Rotação de sugestões do campo de pergunta do assistente — retrigger via
+   `key` do React a cada troca (chat.tsx). */
+@keyframes suggestion-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-suggestion {
+  animation: suggestion-in 400ms ease-out;
+}
+
 /* FR-008: respeita preferência de movimento reduzido em todo o app. */
 @media (prefers-reduced-motion: reduce) {
   *,
