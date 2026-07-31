@@ -3,10 +3,20 @@
 
 BACKEND_DIR := backend
 VENV        := $(CURDIR)/.venv
-PY          := $(VENV)/bin/python
 SPECIFY     := .specify/scripts/bash/create-new-feature.sh
 DB_URL      ?= postgresql://genai_e2:genai_e2_dev@localhost:5432/genai_e2
 TEST_DB_URL ?= postgresql://genai_e2:genai_e2_dev@localhost:5432/genai_e2_test
+
+## ─── OS profile (windows/powershell vs linux/bash) ────────────────────────────
+## GNU Make on Windows runs recipes via sh.exe (Git Bash), so bash syntax below
+## works on both. Only the venv layout and python binary name differ per OS.
+ifeq ($(OS),Windows_NT)
+  PY         := $(VENV)/Scripts/python.exe
+  PYTHON_BIN := python
+else
+  PY         := $(VENV)/bin/python
+  PYTHON_BIN := python3
+endif
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | awk 'BEGIN{FS=":.*?## "}{printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -22,12 +32,17 @@ dev-logs: ## Tail api + postgres logs
 	docker compose logs -f api postgres
 
 $(PY):
-	python3 -m venv $(VENV)
+	$(PYTHON_BIN) -m venv $(VENV)
 	$(PY) -m pip install -q --upgrade pip
 	$(PY) -m pip install -q -r $(BACKEND_DIR)/requirements-dev.txt -e $(BACKEND_DIR)
 
+ifeq ($(OS),Windows_NT)
+venv: $(PY) ## Create .venv and install backend deps (activate: .venv\Scripts\Activate.ps1)
+	@echo "venv ready -> .venv\\Scripts\\Activate.ps1"
+else
 venv: $(PY) ## Create .venv and install backend deps (activate: source .venv/bin/activate)
 	@echo "venv ready -> source $(VENV)/bin/activate"
+endif
 
 install: $(PY) frontend/node_modules ## Install/update backend runtime deps (.venv) and frontend deps (npm)
 	$(PY) -m pip install -r $(BACKEND_DIR)/requirements.txt
