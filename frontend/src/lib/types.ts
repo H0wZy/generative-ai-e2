@@ -281,6 +281,13 @@ export interface AssistantAnswer {
   ticket_context: TicketRefSource | null;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updated_at: string;
+  is_favorite: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // 4. Entidades do shell — só no frontend
 // ---------------------------------------------------------------------------
