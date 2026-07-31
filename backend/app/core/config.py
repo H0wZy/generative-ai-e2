@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     assistant_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     assistant_timeout_seconds: int = 60
     assistant_max_context_chars: int = 12000
+    # Teto de tokens de saída — resposta gigante empurra a conversa inteira
+    # pra fora da tela (achado de QA exploratório em 2026-07-30).
+    assistant_max_tokens: int = 600
     openrouter_api_key: SecretStr | None = None
 
     @property

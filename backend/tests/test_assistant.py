@@ -199,3 +199,54 @@ def test_long_history_is_truncated_and_flagged(
 
     assert body["status"] == "answered"
     assert body["truncated_history"] is True
+
+
+# ---------------------------------------------------------------------------
+# Guardrail: alucinação de tool-call (modelo free tier não tem tools de
+# verdade, mas às vezes finge ter — achado de QA em 2026-07-30)
+# ---------------------------------------------------------------------------
+
+
+def test_hallucinated_tool_call_json_is_stripped_from_answer(
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    fake_assistant.reply = (
+        'Vou buscar isso[{"tool": "grep", "args": {"pattern": "idempotent"}}]'
+        "A idempotência garante que reprocessar não duplique."
+    )
+    client = _client(True, fake_rag, fake_assistant, session_factory)
+
+    body = _ask(client).json()
+
+    assert '"tool"' not in body["answer"]
+    assert "A idempotência garante que reprocessar não duplique." in body["answer"]
+
+
+def test_hallucinated_tool_call_tag_is_stripped_from_answer(
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    fake_assistant.reply = "<tool_call>algo aqui</tool_call>Resposta de verdade."
+    client = _client(True, fake_rag, fake_assistant, session_factory)
+
+    body = _ask(client).json()
+
+    assert "tool_call" not in body["answer"]
+    assert "Resposta de verdade." in body["answer"]
+
+
+def test_answer_that_is_only_artifact_falls_back_to_original_text(
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+    session_factory: sessionmaker[Session],
+) -> None:
+    fake_assistant.reply = '[{"tool": "grep", "args": {}}]'
+    client = _client(True, fake_rag, fake_assistant, session_factory)
+
+    body = _ask(client).json()
+
+    # Nunca devolve resposta vazia — cai pro texto original em vez de sumir.
+    assert body["answer"]

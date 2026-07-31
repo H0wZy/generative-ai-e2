@@ -27,20 +27,30 @@ class AssistantClientProtocol(Protocol):
 
 
 class OpenRouterClient:
-    def __init__(self, base_url: str, api_key: str, model: str, timeout_seconds: int) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout_seconds: int,
+        max_tokens: int | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout_seconds
+        self._max_tokens = max_tokens
 
     def complete(self, system: str, user: str) -> str:
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
         }
+        if self._max_tokens is not None:
+            payload["max_tokens"] = self._max_tokens
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
         try:

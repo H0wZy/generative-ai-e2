@@ -192,15 +192,29 @@ class AuditLogRow(Base):
 class AssistantConversationRow(Base):
     __tablename__ = "assistant_conversations"
 
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     # Gerado no navegador (crypto.randomUUID()), nunca no servidor — não há
-    # login para amarrar a um usuário (FR-058/FR-059).
-    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    # login para amarrar a um usuário (FR-058/FR-059). Várias conversas podem
+    # ter o mesmo session_id.
+    session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # Vazio até a primeira mensagem — vira o começo da pergunta do usuário.
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    # Favoritada (fixada) — sobe pra uma seção acima de "Recentes" na sidebar.
+    is_favorite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
+    # `passive_deletes=True`: confia no `ondelete="CASCADE"` do FK (abaixo) em
+    # vez do ORM tentar (e falhar) colocar NULL em `conversation_id` ao
+    # excluir a conversa.
     messages: Mapped[list[AssistantMessageRow]] = relationship(
-        back_populates="conversation", order_by="AssistantMessageRow.created_at"
+        back_populates="conversation",
+        order_by="AssistantMessageRow.created_at",
+        passive_deletes=True,
     )
 
 
@@ -209,7 +223,7 @@ class AssistantMessageRow(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     conversation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("assistant_conversations.session_id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("assistant_conversations.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
