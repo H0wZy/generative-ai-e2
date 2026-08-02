@@ -19,8 +19,14 @@ Nenhuma linha de código muda entre os dois caminhos abaixo — a diferença é 
 ### Caminho 1: Com Docker (recomendado, padrão)
 
 ```bash
+make venv
+```
+
+Isso irá chamar um echo de ativação do .venv do python de acordo com seu sistema operacional, copie e cole o output na saída do seu terminal pra ativar.
+
+```bash
 # Subir PostgreSQL container
-make up
+make dev
 
 # Aplicar migrations
 make migrate
@@ -31,6 +37,11 @@ make test
 
 # Iniciar API
 make serve
+```
+
+```bash
+cd ./rag/
+docker compose up -d
 ```
 
 ### Caminho 2: PostgreSQL local (sem Docker)
