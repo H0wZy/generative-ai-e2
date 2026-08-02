@@ -12,20 +12,27 @@ const FILLS = [
 export function Donut({
   slices,
   label,
-  size = 140,
+  size = 104,
 }: {
   slices: Slice[];
   label: string;
   size?: number;
 }) {
   const total = slices.reduce((sum, s) => sum + s.value, 0);
-  const radius = size / 2 - 12;
+  const radius = size / 2 - 10;
   const circumference = 2 * Math.PI * radius;
   let consumed = 0;
 
   return (
-    <figure className="flex items-center gap-4">
-      <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-label={label}>
+    <figure className="flex max-w-full items-center gap-3">
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        width={size}
+        height={size}
+        className="shrink-0"
+        role="img"
+        aria-label={label}
+      >
         <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           {total === 0 ? (
             <circle

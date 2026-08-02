@@ -23,7 +23,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <section data-slot="card" className={cn("rounded-lg bg-card p-4 shadow-sm", className)}>
+    <section data-slot="card" className={cn("rounded-lg bg-card p-3 shadow-sm", className)}>
       {(title || action) && (
         <CardHeader>
           {title && <CardTitle>{title}</CardTitle>}
@@ -39,7 +39,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"header">) {
   return (
     <header
       data-slot="card-header"
-      className={cn("mb-3 flex items-center justify-between gap-3", className)}
+      className={cn("mb-2 flex items-center justify-between gap-3", className)}
       {...props}
     />
   );

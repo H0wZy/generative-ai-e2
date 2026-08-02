@@ -2,7 +2,7 @@ import type { BurndownSeries } from "@/lib/types";
 
 // Linha ideal tracejada, linha real cheia. Dia futuro chega como `null` e não
 // é desenhado — a curva para no hoje em vez de despencar para zero.
-export function Burndown({ series, height = 160 }: { series: BurndownSeries; height?: number }) {
+export function Burndown({ series, height = 120 }: { series: BurndownSeries; height?: number }) {
   const width = 480;
   const padding = { top: 8, right: 8, bottom: 20, left: 28 };
   const plotW = width - padding.left - padding.right;

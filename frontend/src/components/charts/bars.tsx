@@ -6,7 +6,7 @@ export function Bars({
   groups,
   seriesLabels,
   label,
-  height = 140,
+  height = 105,
 }: {
   groups: BarGroup[];
   seriesLabels: string[];
@@ -14,7 +14,11 @@ export function Bars({
   height?: number;
 }) {
   const max = Math.max(1, ...groups.flatMap((g) => g.values));
-  const width = Math.max(1, groups.length) * 64;
+  // Largura do viewBox fixa (como Burndown) em vez de escalar por grupo: o
+  // SVG sempre ocupa 100% do container via CSS (`w-full`), então um viewBox
+  // estreito pra poucos grupos faz o navegador ampliar tudo — inclusive o
+  // texto — proporcionalmente mais, deixando o rótulo gigante e cortado.
+  const width = Math.max(420, Math.max(1, groups.length) * 140);
   const groupWidth = width / Math.max(1, groups.length);
   const barWidth = (groupWidth * 0.6) / Math.max(1, seriesLabels.length);
   const plot = height - 20;
@@ -22,7 +26,7 @@ export function Bars({
 
   return (
     <figure className="overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-64" role="img" aria-label={label}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-48" role="img" aria-label={label}>
         {groups.map((group, gi) => {
           const originX = gi * groupWidth + groupWidth * 0.2;
           return (
@@ -46,7 +50,7 @@ export function Bars({
                 y={height - 6}
                 textAnchor="middle"
                 fontSize="10"
-                fill="var(--color-muted)"
+                fill="var(--color-text)"
               >
                 {group.label}
               </text>

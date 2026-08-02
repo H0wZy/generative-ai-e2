@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Bars } from "@/components/charts/bars";
 import { Donut } from "@/components/charts/donut";
+import { formatSquadLabel } from "@/components/itsm/ticket-table";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Stat } from "@/components/ui/stat";
@@ -43,7 +44,10 @@ export default async function Home() {
   const squadSlices = [...bySquad.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4)
-    .map(([label, value]) => ({ label, value }));
+    .map(([label, value]) => ({
+      label: label === "sem squad" ? label : formatSquadLabel(label),
+      value,
+    }));
 
   const sprint = agile.ok && agile.data.available ? agile.data.data : null;
   const agileReason = agile.ok && !agile.data.available ? agile.data.reason : null;
@@ -73,7 +77,7 @@ export default async function Home() {
       {/* FR-013: a indisponibilidade de uma origem não impede as outras. */}
       <section
         aria-label="Indicadores de ITSM"
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
       >
         <Stat
           label="Incidentes abertos"
@@ -99,7 +103,7 @@ export default async function Home() {
         />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card title="Progresso do sprint">
           {sprint?.sprint ? (
             <div className="flex flex-col gap-3">
@@ -161,7 +165,7 @@ export default async function Home() {
               slices={[
                 { label: "Concluídos", value: metrics.data.completed },
                 { label: "Pendentes", value: metrics.data.pending },
-                { label: "Retry", value: metrics.data.retry_scheduled },
+                { label: "Retry agendado", value: metrics.data.retry_scheduled },
                 { label: "Exceções", value: critical ?? 0 },
               ]}
             />

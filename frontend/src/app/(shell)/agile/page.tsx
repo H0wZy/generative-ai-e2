@@ -67,7 +67,7 @@ export default async function AgileDashboard() {
         </Link>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Dias restantes"
           value={sprint.days_left}
@@ -82,7 +82,7 @@ export default async function AgileDashboard() {
         <Stat label="Bloqueios" value={blocked?.length ?? 0} hint="sprint atual" />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card title="Burndown">
           {burndown ? (
             <Burndown series={burndown} />
