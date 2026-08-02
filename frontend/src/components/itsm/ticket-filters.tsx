@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatSquadLabel } from "./ticket-table";
+import { PRIORITY_OPTIONS } from "@/lib/ticket-priority";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -21,14 +22,6 @@ const STATUS_OPTIONS = [
   ["completed", "Concluído"],
   ["failed", "Falha"],
   ["needs_human_review", "Revisão humana"],
-] as const;
-
-const PRIORITY_OPTIONS = [
-  ["", "Todas as prioridades"],
-  ["urgent", "Urgente"],
-  ["high", "Alta"],
-  ["medium", "Média"],
-  ["low", "Baixa"],
 ] as const;
 
 const FIELD =

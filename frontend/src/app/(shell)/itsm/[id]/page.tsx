@@ -5,10 +5,12 @@ import { ReprocessButton } from "@/components/itsm/reprocess-button";
 import { TicketEditPanel } from "@/components/itsm/ticket-edit-panel";
 import type { TicketFormValues } from "@/components/itsm/ticket-form";
 import { Timeline } from "@/components/itsm/timeline";
+import { formatSquadLabel } from "@/components/itsm/ticket-table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UnavailableState } from "@/components/ui/unavailable-state";
 import { apiFetch } from "@/lib/api";
+import { PRIORITY_LABELS } from "@/lib/ticket-priority";
 import type { WorkflowDetail } from "@/lib/types";
 
 const LINK_CLASS =
@@ -70,7 +72,7 @@ export default async function TicketDetailPage({
               <Badge variant={detail.reprocess_eligible ? "danger" : "success"}>{detail.status}</Badge>
             </Field>
             <Field label="Tentativas">{detail.attempt_count}</Field>
-            <Field label="Squad">{detail.squad_id ?? "—"}</Field>
+            <Field label="Squad">{detail.squad_id ? formatSquadLabel(detail.squad_id) : "—"}</Field>
             <Field label="Confiança do roteamento">
               {detail.routing_confidence !== null
                 ? `${Math.round(detail.routing_confidence * 100)}%`
@@ -114,7 +116,7 @@ export default async function TicketDetailPage({
 
         <Card title="Ticket" className="lg:col-span-2">
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Field label="Prioridade">{detail.ticket.priority}</Field>
+            <Field label="Prioridade">{PRIORITY_LABELS[detail.ticket.priority] ?? detail.ticket.priority}</Field>
             <Field label="Categoria">{detail.ticket.category ?? "—"}</Field>
             <Field label="Origem">{detail.ticket.source_system}</Field>
             <Field label="Solicitante">{detail.ticket.requester ?? "—"}</Field>

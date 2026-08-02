@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { PRIORITY_LABELS } from "@/lib/ticket-priority";
 import type { WorkflowListItem, WorkflowStatus } from "@/lib/types";
 
 import { ReprocessButton } from "./reprocess-button";
@@ -74,7 +75,7 @@ export function TicketTable({
               <TableCell className="text-text">{item.ticket.subject}</TableCell>
               <TableCell>
                 <Badge variant={PRIORITY_TONE[item.ticket.priority] ?? "neutral"}>
-                  {item.ticket.priority}
+                  {PRIORITY_LABELS[item.ticket.priority] ?? item.ticket.priority}
                 </Badge>
               </TableCell>
               <TableCell>
