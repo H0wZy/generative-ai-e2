@@ -107,6 +107,7 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     # MCP) — WAL exige sidecar -wal/-shm gravável até para leitura, o que um
     # mount somente-leitura nunca permite.
     conn.execute("PRAGMA journal_mode=DELETE")
+    conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA foreign_keys=ON")
     load_vec_extension(conn)
     return conn

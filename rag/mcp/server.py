@@ -86,13 +86,17 @@ mcp = FastMCP(
 
 def _result_to_dict(r: SearchResult) -> dict[str, Any]:
     """Converte SearchResult para dict serializável."""
+    # Escapa o delimitador de sandboxing se ele aparecer literalmente no
+    # conteúdo indexado — senão um documento malicioso poderia fingir ter
+    # saído do bloco <untrusted_document> antes do fechamento real.
+    safe_content = r.content.replace("</untrusted_document>", "&lt;/untrusted_document&gt;")
     return {
         "file_path": r.file_path,
         "heading_path": r.heading_path,
         "start_line": r.start_line,
         "end_line": r.end_line,
         "distance": r.distance,
-        "content": f"<untrusted_document>\n{r.content}\n</untrusted_document>",
+        "content": f"<untrusted_document>\n{safe_content}\n</untrusted_document>",
     }
 
 
@@ -150,7 +154,7 @@ def search_architecture_knowledge(
     if _ALLOWED_PREFIXES:
         results = [
             r for r in results
-            if any(r.file_path.startswith(p) for p in _ALLOWED_PREFIXES)
+            if any(r.file_path == p or r.file_path.startswith(p.rstrip("/") + "/") for p in _ALLOWED_PREFIXES)
         ]
 
     return {

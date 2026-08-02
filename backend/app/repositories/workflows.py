@@ -176,12 +176,17 @@ class WorkflowRepository:
         Returns ``(outbox_event, workflow, ticket)`` or ``None`` if the
         queue is empty.  The caller MUST commit or rollback the session.
         """
+        now = datetime.now(timezone.utc)
         stmt = (
             select(OutboxEventRow)
-            .where(OutboxEventRow.claimed.is_(False))
+            .join(WorkflowExecutionRow, WorkflowExecutionRow.id == OutboxEventRow.workflow_execution_id)
+            .where(
+                OutboxEventRow.claimed.is_(False),
+                (WorkflowExecutionRow.next_attempt_at.is_(None)) | (WorkflowExecutionRow.next_attempt_at <= now),
+            )
             .order_by(OutboxEventRow.created_at)
             .limit(1)
-            .with_for_update(skip_locked=True)
+            .with_for_update(of=OutboxEventRow, skip_locked=True)
         )
         outbox = self._session.execute(stmt).scalar_one_or_none()
         if outbox is None:
@@ -600,7 +605,13 @@ class WorkflowRepository:
         Idempotent: if the ticket already has a Jira link, no new outbox
         event is created and the existing link is returned instead.
         """
-        workflow = self._session.get(WorkflowExecutionRow, workflow_id)
+        # FOR UPDATE: a concurrent reprocess call for the same workflow blocks
+        # here until the first commits, so its status re-check below sees the
+        # row already flipped to "pending" instead of racing past it and
+        # creating a second real Jira issue.
+        workflow = self._session.execute(
+            select(WorkflowExecutionRow).where(WorkflowExecutionRow.id == workflow_id).with_for_update()
+        ).scalar_one_or_none()
         if workflow is None:
             return ReprocessOutcome(found=False, conflict=False, status=None, jira_issue_key=None, reason=None)
 

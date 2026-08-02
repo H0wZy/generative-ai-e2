@@ -84,11 +84,22 @@ def _index_file(
         )
         new_file_id = file_id
     else:
-        cursor = conn.execute(
-            "INSERT INTO source_files (file_path, content_hash) VALUES (?, ?)",
-            (file_path, content_hash),
-        )
-        new_file_id = cursor.lastrowid
+        try:
+            cursor = conn.execute(
+                "INSERT INTO source_files (file_path, content_hash) VALUES (?, ?)",
+                (file_path, content_hash),
+            )
+            new_file_id = cursor.lastrowid
+        except sqlite3.IntegrityError:
+            # Outro processo de sync já inseriu este file_path entre nosso
+            # scan e este INSERT (execução concorrente). Trata como update.
+            row = conn.execute("SELECT id FROM source_files WHERE file_path = ?", (file_path,)).fetchone()
+            new_file_id = row["id"]
+            _remove_file_data(conn, new_file_id)
+            conn.execute(
+                "UPDATE source_files SET content_hash=?, indexed_at=datetime('now'), status='active' WHERE id=?",
+                (content_hash, new_file_id),
+            )
 
     chunks: list[Chunk] = chunk_markdown(
         content,

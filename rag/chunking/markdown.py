@@ -14,6 +14,7 @@ Limites de tamanho configuráveis via parâmetros — sem valores hard-coded.
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from dataclasses import dataclass, field
 from typing import Generator
 
@@ -133,25 +134,38 @@ def _split_oversized(
 ) -> list[Chunk]:
     """
     Divide um chunk que excede max_tokens em sub-chunks com sobreposição.
-    Preserva heading_path e distribui start/end_line proporcionalmente.
+    Preserva heading_path; mapeia cada janela de palavras para a linha física
+    real onde ela cai (via contagem de palavras por linha), em vez de estimar
+    por proporção — proporção colapsa quando o chunk tem poucas linhas físicas
+    e muitas palavras (ex: parágrafo longo sem quebra), fazendo sub-chunks com
+    conteúdo diferente apontarem pra mesma linha.
     """
     words = chunk.content.split()
-    total_lines = chunk.end_line - chunk.start_line + 1
+    lines = chunk.content.split("\n")
     sub_chunks: list[Chunk] = []
+
+    # Word count acumulado até o FIM de cada linha (prefix sum), pra achar por
+    # bisect em qual linha um índice de palavra global cai.
+    cum_words: list[int] = []
+    total = 0
+    for line in lines:
+        total += len(line.split())
+        cum_words.append(total)
+
+    def line_offset_for_word(word_idx: int) -> int:
+        idx = min(word_idx, len(words) - 1)
+        line_idx = bisect_right(cum_words, idx)
+        return min(line_idx, len(lines) - 1)
 
     step = max(1, max_tokens - overlap)
     pos = 0
-    sub_idx = 0
 
     while pos < len(words):
         window = words[pos : pos + max_tokens]
         content = " ".join(window)
 
-        # Estimativa de linhas proporcional
-        proportion = pos / len(words)
-        end_proportion = (pos + len(window)) / len(words)
-        est_start = chunk.start_line + int(proportion * total_lines)
-        est_end = chunk.start_line + int(end_proportion * total_lines)
+        est_start = chunk.start_line + line_offset_for_word(pos)
+        est_end = chunk.start_line + line_offset_for_word(pos + len(window) - 1)
 
         sub_chunks.append(
             Chunk(
@@ -162,7 +176,6 @@ def _split_oversized(
             )
         )
         pos += step
-        sub_idx += 1
 
     return sub_chunks
 
@@ -194,6 +207,6 @@ def iter_markdown_files(
             continue  # symlink escapou de root — rejeita
         path_str = str(md_file)
         if allowed_prefixes:
-            if not any(path_str.startswith(p) for p in allowed_prefixes):
+            if not any(path_str == p or path_str.startswith(p.rstrip("/") + "/") for p in allowed_prefixes):
                 continue
         yield path_str

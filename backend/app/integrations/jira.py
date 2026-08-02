@@ -120,11 +120,14 @@ class JiraClient:
             }
         }
 
-        with httpx.Client(auth=self._auth, timeout=30) as client:
-            response = client.post(
-                f"{self._base_url}/rest/api/3/issue",
-                json=payload,
-            )
+        try:
+            with httpx.Client(auth=self._auth, timeout=30) as client:
+                response = client.post(
+                    f"{self._base_url}/rest/api/3/issue",
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            raise JiraClientError(retryable=True, message=f"Falha de rede: {type(exc).__name__}") from exc
 
         self._raise_for_status(response)
         return response.json()["key"]

@@ -191,7 +191,7 @@ def search(
             rows = _search_fallback(conn, query_vector, prefetch)
 
     except sqlite3.OperationalError as exc:
-        logger.error("Erro na busca: %s", type(exc).__name__)
+        logger.error("Busca falhou por erro do SQLite (%s) — resultado vazio NÃO significa 'sem evidência'", type(exc).__name__)
         return []
 
     results: list[SearchResult] = []
