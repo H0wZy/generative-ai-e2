@@ -306,6 +306,71 @@ LLM). Hoje é DoS acidental; com webhook externo em produção viraria DoS
 barato — mitigação futura é rate limit no boundary de ingestão mais teto na
 fila.
 
+**Interface consolidada em shadcn (rodada 006, fechada em passo posterior).**
+A migração cobriu combobox, botões, cartões, diálogos, selo, área de rolagem,
+tabela (`ui/table.tsx`, no formato `Table`/`TableHeader`/`TableRow`/…) e todos
+os `<button>`/`<textarea>` brutos da tela do Assistente (composer, acordeão
+de fontes, estado vazio, retry da conversa, breadcrumb) — estes últimos
+usando um `Button`/`Textarea` próprios em `components/assistant/v0/`, com
+tokens `v0-*` (paleta separada da do produto, decisão mantida de propósito).
+O foco visível vem de graça da base do `Button` (`focus-visible:ring-*` no
+`cva` compartilhado por todas as variantes), o que também fechou a varredura
+de teclado (T044): backdrop mobile da sidebar tirado da ordem de tabulação
+(`tabIndex={-1}`, cobre a tela inteira, não é controle navegável) e o botão
+de cada conversa na sidebar ganhou `focus-visible` explícito. A rodada
+também trouxe **uma dependência nova, `sonner`**, contra a regra de "nenhuma
+dependência nova onde o que já está instalado resolve" (Princípio V): foi
+pedido explícito para a janela de desfazer com notificação, e está
+registrado aqui como decisão consciente, não como descuido.
+
+**O endereço da conversa nova é trocado por `history.replaceState`, não pelo
+roteador (rodada 007).** Ao enviar a primeira pergunta em `/ai/chat`, a
+conversa passa a existir e o endereço vira `/ai/chat/{id}` sem recarregar.
+Navegação de verdade (`router.push`/`replace`) trocaria o segmento da rota,
+remontaria o componente cliente e abortaria a resposta em voo — que é
+exatamente o que o requisito proíbe. O preço é que o roteador do Next fica
+com uma URL que ele não navegou. Isso é seguro **enquanto** `/ai/chat` e
+`/ai/chat/{id}` renderizarem o mesmo componente cliente; se um dia divergirem
+em layout, a troca precisa virar navegação com o estado dos turnos elevado
+para fora do segmento.
+
+**Sem `loading.tsx` no segmento `/ai/chat`.** Medido em 2026-08-02: com um
+`loading.tsx` ali, `/ai/chat` e `/ai/chat/[id]` param de hidratar — nenhum
+efeito roda, nenhuma requisição sai, e a tela congela no HTML do servidor
+(`TypeError: Cannot read properties of null (reading 'parentNode')` no
+injetor de stream do React). Reproduzido nos dois sentidos, com e sem o
+arquivo. Não faz falta: a tela é cliente e já tem estado de carregamento
+próprio por conversa. As outras rotas mantêm seus esqueletos.
+
+**Sem índice em `assistant_conversations.archived_at`.** A tabela é por sessão
+de navegador, com dezenas de linhas por sessão, e a consulta já filtra por
+`session_id`. Se a listagem por sessão chegar a milhares de linhas, o próximo
+passo é um índice composto `(session_id, archived_at)`.
+
+**Arquivar não renomeou a API.** O prefixo continua `/api/v1/assistant`; só o
+endereço do navegador virou `/ai/*`. Arquivar entrou como campo opcional no
+`PATCH` que já existia e como filtro de estado no `GET`, sem rota nova.
+Continuam fora: compartilhar conversa por link (o endereço vale só para a
+sessão dona, e nenhuma tela oferece copiá-lo, para não prometer o que o
+sistema não faz), envio de arquivo para análise do modelo, busca e ordenação
+dentro das arquivadas, arquivamento automático por inatividade e exportação.
+
+**Hidratação divergente na rota compartilhada, corrigida com `useSyncExternalStore`.**
+Em `/` e `/ai/chat`, o workspace ativo vem do `localStorage` (para não cair
+sempre em ITSM ao voltar do Assistente) — mas o servidor não tem acesso a
+`localStorage`, então ele sempre renderizava ITSM enquanto o primeiro render
+do cliente, antes de hidratar, podia ler "agile" e divergir; o React
+descartava a árvore inteira (`Hydration failed`). Era anterior a estas
+rodadas e também a causa do erro de lint `react-hooks/set-state-in-effect`
+que sobrevivia desde a rodada 006, no mesmo `useActiveWorkspace`
+(`frontend/src/lib/nav.ts`). `useActiveWorkspace` foi reescrita sobre
+`useSyncExternalStore`, com `getServerSnapshot` sempre devolvendo `"itsm"` —
+React usa esse valor até a hidratação terminar por design, então os dois
+primeiros renders nunca mais divergem. Verificado forçando o cenário que
+antes quebrava (`localStorage` em "agile", servidor em "itsm") em `/`,
+`/ai/chat` e `/ai/chat/{id}`: zero falha de hidratação, workspace correto.
+`eslint` está em zero erros desde então.
+
 ## Uso de IA Generativa
 
 As evidências rastreáveis do uso de IA — prompts, decisões, saídas sanitizadas, validações e material de demonstração — devem ser mantidas em [`evidence/`](./evidence/README.md) e indexadas em [`docs/ai/`](./docs/ai/README.md). Dados reais de clientes, credenciais e conteúdo sensível não devem ser incluídos.
