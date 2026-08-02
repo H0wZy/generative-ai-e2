@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
@@ -35,10 +36,13 @@ class AskRequest(AssistantQuestion):
 
 
 class ConversationUpdateRequest(BaseModel):
-    # Ambos opcionais — PATCH parcial: renomear e favoritar são ações
+    # Todos opcionais — PATCH parcial: renomear, favoritar e arquivar são ações
     # independentes na sidebar (menu de contexto), não um formulário único.
     title: str | None = None
     is_favorite: bool | None = None
+    # Booleano, não data: a interface alterna um estado. O carimbo é gravado
+    # pelo servidor (specs/007 R3).
+    is_archived: bool | None = None
 
 
 def _parse_session_id(x_session_id: str | None) -> uuid.UUID | None:
@@ -56,6 +60,7 @@ def _conversation_summary(row: AssistantConversationRow) -> dict:
         "title": row.title,
         "updated_at": row.updated_at.isoformat(),
         "is_favorite": row.is_favorite,
+        "archived_at": row.archived_at.isoformat() if row.archived_at else None,
     }
 
 
@@ -99,14 +104,19 @@ def create_assistant_router(settings: Settings, session_factory: sessionmaker[Se
 
     @router.get("/conversations")
     def list_conversations(
+        state: Literal["active", "archived"] = "active",
         x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
         session: Session = Depends(get_session),
     ) -> dict:
-        """Sem sessão, ou header inválido, devolve lista vazia — nunca 404."""
+        """Sem sessão, ou header inválido, devolve lista vazia — nunca 404.
+
+        `state` default `active`: quem já consumia esta rota antes do
+        arquivamento continua vendo o mesmo, agora sem as arquivadas.
+        """
         session_id = _parse_session_id(x_session_id)
         if session_id is None:
             return {"conversations": []}
-        rows = AssistantConversationRepository(session).list_conversations(session_id)
+        rows = AssistantConversationRepository(session).list_conversations(session_id, state)
         return {"conversations": [_conversation_summary(row) for row in rows]}
 
     @router.get("/conversations/{conversation_id}/messages")
@@ -129,7 +139,11 @@ def create_assistant_router(settings: Settings, session_factory: sessionmaker[Se
                 message["sources"] = envelope.get("sources", [])
                 message["ticket_context"] = envelope.get("ticket_context")
             messages.append(message)
-        return {"messages": messages}
+        # `conversation`: a tela precisa saber que a conversa aberta está
+        # arquivada pra avisar (specs/007 US2). Arquivada some das listas
+        # ativas, então essa informação não chegaria por `GET /conversations`
+        # — e uma requisição só pra isso seria desperdício. Campo aditivo.
+        return {"messages": messages, "conversation": _conversation_summary(conversation)}
 
     @router.patch("/conversations/{conversation_id}")
     def update_conversation(
@@ -153,6 +167,8 @@ def create_assistant_router(settings: Settings, session_factory: sessionmaker[Se
             repo.rename_conversation(conversation_id, session_id, trimmed)
         if payload.is_favorite is not None:
             repo.set_favorite(conversation_id, session_id, payload.is_favorite)
+        if payload.is_archived is not None:
+            repo.set_archived(conversation_id, session_id, payload.is_archived)
 
         session.refresh(conversation)
         return _conversation_summary(conversation)

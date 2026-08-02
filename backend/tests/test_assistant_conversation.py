@@ -352,3 +352,224 @@ def test_ask_without_conversation_id_still_answers_but_does_not_persist(
         "/api/v1/assistant/conversations", headers={"X-Session-Id": _SESSION_A}
     ).json()["conversations"]
     assert listed == []
+
+
+# ---------------------------------------------------------------------------
+# Arquivamento (specs/007) — `archived_at` nulável, escrito só pelo servidor.
+# ---------------------------------------------------------------------------
+
+
+def _ids(client: TestClient, headers: dict[str, str], state: str | None = None) -> list[str]:
+    params = {"state": state} if state else None
+    listed = client.get(
+        "/api/v1/assistant/conversations", headers=headers, params=params
+    ).json()["conversations"]
+    return [conversation["id"] for conversation in listed]
+
+
+def test_archive_moves_conversation_between_lists(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+
+    assert created["archived_at"] is None
+
+    archived = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    assert archived.status_code == 200
+    assert archived.json()["archived_at"] is not None
+    assert _ids(client, headers) == []
+    assert _ids(client, headers, "archived") == [created["id"]]
+
+
+def test_unarchive_restores_conversation_with_favorite_intact(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+    client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_favorite": True},
+        headers=headers,
+    )
+    client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    restored = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": False},
+        headers=headers,
+    )
+
+    assert restored.status_code == 200
+    assert restored.json()["archived_at"] is None
+    # Arquivar não é uma forma de desfavoritar — desarquivar devolve a conversa
+    # exatamente à lista de onde ela saiu (FR-011).
+    assert restored.json()["is_favorite"] is True
+    assert _ids(client, headers) == [created["id"]]
+    assert _ids(client, headers, "archived") == []
+
+
+def test_archiving_a_favorite_keeps_it_favorite(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+    client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_favorite": True},
+        headers=headers,
+    )
+
+    archived = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    assert archived.json()["is_favorite"] is True
+
+
+def test_archiving_twice_keeps_the_first_timestamp(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+
+    first = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    ).json()["archived_at"]
+    second = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    ).json()["archived_at"]
+
+    # FR-012 registra QUANDO foi arquivada, não quando o botão foi clicado pela
+    # última vez.
+    assert first == second
+
+
+def test_archiving_does_not_touch_updated_at(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+
+    archived = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    ).json()
+    restored = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": False},
+        headers=headers,
+    ).json()
+
+    # `updated_at` significa "última atividade da conversa" e ordena "Recentes".
+    # Arquivar não é atividade: desarquivar tem que devolver a conversa à
+    # posição que ela tinha.
+    assert archived["updated_at"] == created["updated_at"]
+    assert restored["updated_at"] == created["updated_at"]
+
+
+def test_session_b_cannot_archive_session_a_conversation(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    created = client.post(
+        "/api/v1/assistant/conversations", headers={"X-Session-Id": _SESSION_A}
+    ).json()
+
+    response = client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers={"X-Session-Id": _SESSION_B},
+    )
+
+    assert response.status_code == 404
+    assert _ids(client, {"X-Session-Id": _SESSION_A}) == [created["id"]]
+
+
+def test_listing_without_state_hides_archived(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    kept = client.post("/api/v1/assistant/conversations", headers=headers).json()
+    hidden = client.post("/api/v1/assistant/conversations", headers=headers).json()
+    client.patch(
+        f"/api/v1/assistant/conversations/{hidden['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    # Sem `state`, o comportamento é o de antes desta rodada — quem já consome
+    # a rota não precisa mudar nada pra deixar de ver arquivadas (FR-009).
+    assert _ids(client, headers) == [kept["id"]]
+
+
+def test_delete_archived_conversation_works_like_an_active_one(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+    headers = {"X-Session-Id": _SESSION_A}
+    created = client.post("/api/v1/assistant/conversations", headers=headers).json()
+    client.patch(
+        f"/api/v1/assistant/conversations/{created['id']}",
+        json={"is_archived": True},
+        headers=headers,
+    )
+
+    response = client.delete(f"/api/v1/assistant/conversations/{created['id']}", headers=headers)
+
+    assert response.status_code == 204
+    assert _ids(client, headers, "archived") == []
+
+
+def test_unknown_state_value_is_422(
+    session_factory: sessionmaker[Session],
+    fake_rag: FakeRagSearchClient,
+    fake_assistant: FakeAssistantClient,
+) -> None:
+    client = _client(session_factory, fake_rag, fake_assistant)
+
+    response = client.get(
+        "/api/v1/assistant/conversations",
+        headers={"X-Session-Id": _SESSION_A},
+        params={"state": "todas"},
+    )
+
+    assert response.status_code == 422

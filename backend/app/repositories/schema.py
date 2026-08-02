@@ -207,6 +207,12 @@ class AssistantConversationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # `NULL` = ativa. Coluna temporal em vez de booleana porque custa o mesmo e
+    # já registra QUANDO foi arquivada (specs/007 FR-012). Ortogonal a
+    # `is_favorite`: arquivar não desfavorita.
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # `passive_deletes=True`: confia no `ondelete="CASCADE"` do FK (abaixo) em
     # vez do ORM tentar (e falhar) colocar NULL em `conversation_id` ao

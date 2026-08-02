@@ -30,13 +30,30 @@ class AssistantConversationRepository:
         self._session.refresh(conversation)
         return conversation
 
-    def list_conversations(self, session_id: uuid.UUID) -> list[AssistantConversationRow]:
-        """Favoritadas primeiro, depois mais recentemente atualizada."""
+    def list_conversations(
+        self, session_id: uuid.UUID, state: Literal["active", "archived"] = "active"
+    ) -> list[AssistantConversationRow]:
+        """Ativas: favoritadas primeiro, depois mais recentemente atualizada.
+
+        Arquivadas: mais recentemente arquivada primeiro, ignorando favorita —
+        é a ordem que se espera ao procurar o que acabou de sair da frente.
+
+        Default `active` preserva o comportamento de quem já chamava isto.
+        """
+        query = select(AssistantConversationRow).where(
+            AssistantConversationRow.session_id == session_id
+        )
+        if state == "archived":
+            return list(
+                self._session.execute(
+                    query.where(AssistantConversationRow.archived_at.is_not(None)).order_by(
+                        AssistantConversationRow.archived_at.desc()
+                    )
+                ).scalars().all()
+            )
         return list(
             self._session.execute(
-                select(AssistantConversationRow)
-                .where(AssistantConversationRow.session_id == session_id)
-                .order_by(
+                query.where(AssistantConversationRow.archived_at.is_(None)).order_by(
                     AssistantConversationRow.is_favorite.desc(),
                     AssistantConversationRow.updated_at.desc(),
                 )
@@ -105,6 +122,26 @@ class AssistantConversationRepository:
         if conversation is None:
             return False
         conversation.is_favorite = is_favorite
+        self._session.commit()
+        return True
+
+    def set_archived(
+        self, conversation_id: uuid.UUID, session_id: uuid.UUID, is_archived: bool
+    ) -> bool:
+        """O carimbo é do servidor, nunca do cliente — relógio de navegador não
+        vira dado persistido.
+
+        Arquivar duas vezes preserva o carimbo original: FR-012 registra quando
+        a conversa foi arquivada, não quando o botão foi clicado por último.
+        Não toca `updated_at` (que ordena "Recentes") nem `is_favorite`.
+        """
+        conversation = self.get_owned(conversation_id, session_id)
+        if conversation is None:
+            return False
+        if not is_archived:
+            conversation.archived_at = None
+        elif conversation.archived_at is None:
+            conversation.archived_at = datetime.now(timezone.utc)
         self._session.commit()
         return True
 
