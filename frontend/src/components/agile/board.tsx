@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,6 +51,9 @@ async function requestTransition(
 export function Board({ initialColumns }: { initialColumns: BoardColumnView[] }) {
   const [columns, setColumns] = useState(initialColumns);
   const [dragging, setDragging] = useState<DragState>(null);
+  // Coluna sob o cursor durante um arrasto ativo — indicador de "soltar
+  // aqui", distinto do aviso de WIP estourado (specs/009 US3).
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // Serializa moves: com duas transições em voo, o revert da primeira (que
   // usa o `columns` capturado antes de começar) sobrescreveria o efeito
@@ -113,47 +116,75 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
       )}
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden pb-2">
-        {columns.map((column) => (
-          <section
-            key={column.name}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              if (dragging) void move(dragging.key, dragging.from, column.name);
-              setDragging(null);
-            }}
-            className={`flex w-64 shrink-0 flex-col gap-2 min-h-0 overflow-y-auto rounded-lg bg-surface p-3 shadow-sm ${
-              column.over_wip ? "outline-2 outline-link" : ""
-            }`}
-          >
-            <header className="flex items-baseline justify-between gap-2">
-              <h3 className="text-sm font-medium text-text">{column.name}</h3>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {column.cards.length}
-                {column.wip_max !== null && ` / ${column.wip_max}`}
-              </span>
-            </header>
-            {column.over_wip && (
-              <p className="text-xs text-text">Limite de WIP estourado</p>
-            )}
+        {columns.map((column) => {
+          const isDropTarget = dragOverColumn === column.name && dragging !== null;
+          return (
+            <section
+              key={column.name}
+              onDragOver={(event) => event.preventDefault()}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                setDragOverColumn(column.name);
+              }}
+              onDragLeave={(event) => {
+                // dragenter/dragleave disparam pra cada filho também — só
+                // limpa quando o cursor realmente saiu da seção (não entrou
+                // num descendente dela), senão o indicador pisca.
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDragOverColumn((current) => (current === column.name ? null : current));
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragging) void move(dragging.key, dragging.from, column.name);
+                setDragging(null);
+                setDragOverColumn(null);
+              }}
+              className={`flex w-64 shrink-0 flex-col gap-2 min-h-0 overflow-y-auto rounded-lg border border-transparent bg-surface p-3 shadow-sm transition-colors ${
+                column.over_wip ? "outline-2 outline-link" : ""
+              } ${isDropTarget ? "border-dashed border-primary bg-elevated" : ""}`}
+            >
+              <header className="flex items-baseline justify-between gap-2">
+                <h3 className="text-sm font-medium text-text">{column.name}</h3>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {column.cards.length}
+                  {column.wip_max !== null && ` / ${column.wip_max}`}
+                </span>
+              </header>
+              {column.over_wip && (
+                <p className="text-xs text-text">Limite de WIP estourado</p>
+              )}
+              {isDropTarget && (
+                <p className="text-xs text-link">Soltar aqui para mover</p>
+              )}
 
-            {column.cards.map((card) => (
-              <BoardCard
-                key={card.key}
-                card={card}
-                columnName={column.name}
-                columnNames={columns.map((c) => c.name)}
-                disabled={moving}
-                onDragStart={() => setDragging({ key: card.key, from: column.name })}
-                onMove={(to) => void move(card.key, column.name, to)}
-              />
-            ))}
+              {column.cards.map((card) => (
+                <BoardCard
+                  key={card.key}
+                  card={card}
+                  columnName={column.name}
+                  columnNames={columns.map((c) => c.name)}
+                  disabled={moving}
+                  isDragging={dragging?.key === card.key}
+                  onDragStart={() => setDragging({ key: card.key, from: column.name })}
+                  onDragEnd={() => {
+                    // Sempre roda, drop bem-sucedido ou não (mouse solto fora
+                    // de qualquer coluna, Esc, saiu da janela) — sem isto o
+                    // card fica preso em estado "fantasma" pra sempre se o
+                    // drop não acontecer sobre uma coluna válida.
+                    setDragging(null);
+                    setDragOverColumn(null);
+                  }}
+                  onMove={(to) => void move(card.key, column.name, to)}
+                />
+              ))}
 
-            {column.cards.length === 0 && (
-              <p className="py-4 text-center text-xs text-muted-foreground">Coluna vazia</p>
-            )}
-          </section>
-        ))}
+              {column.cards.length === 0 && (
+                <p className="py-4 text-center text-xs text-muted-foreground">Coluna vazia</p>
+              )}
+            </section>
+          );
+        })}
       </div>
     </div>
   );
@@ -164,21 +195,54 @@ function BoardCard({
   columnName,
   columnNames,
   disabled,
+  isDragging,
   onDragStart,
+  onDragEnd,
   onMove,
 }: {
   card: WorkItem;
   columnName: string;
   columnNames: string[];
   disabled: boolean;
+  isDragging: boolean;
   onDragStart: () => void;
+  onDragEnd: () => void;
   onMove: (to: string) => void;
 }) {
+  const articleRef = useRef<HTMLElement>(null);
+
+  // Sem isto, o navegador tira a "foto" de arrasto do próprio nó ao vivo —
+  // que aqui contém um <Select> (trigger + conteúdo potencialmente
+  // portalado). Em alguns navegadores essa captura implícita sai
+  // corrompida/expandida, arrastando visualmente elementos que não são o
+  // card (specs/009 research.md). Um clone estático off-screen, sem o
+  // conteúdo interativo, garante que a imagem de arrasto é sempre só o
+  // card em si.
+  function handleDragStart(event: React.DragEvent<HTMLElement>) {
+    const node = articleRef.current;
+    if (node && event.dataTransfer) {
+      const clone = node.cloneNode(true) as HTMLElement;
+      clone.style.position = "fixed";
+      clone.style.top = "-9999px";
+      clone.style.left = "-9999px";
+      clone.style.width = `${node.offsetWidth}px`;
+      clone.style.pointerEvents = "none";
+      document.body.appendChild(clone);
+      event.dataTransfer.setDragImage(clone, node.offsetWidth / 2, 16);
+      window.setTimeout(() => clone.remove(), 0);
+    }
+    onDragStart();
+  }
+
   return (
     <article
+      ref={articleRef}
       draggable={!disabled}
-      onDragStart={onDragStart}
-      className={`flex flex-col gap-2 rounded-md border-l-[3px] bg-elevated p-2 ${workItemStatusRail(card)}`}
+      onDragStart={handleDragStart}
+      onDragEnd={onDragEnd}
+      className={`flex flex-col gap-2 rounded-md border-l-[3px] bg-elevated p-2 transition-opacity ${workItemStatusRail(card)} ${
+        isDragging ? "opacity-40" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <span className="font-mono text-xs text-muted-foreground">{card.key}</span>
@@ -209,8 +273,12 @@ function BoardCard({
           acessível efetivo (vence o texto do label), e o span era
           `position: absolute` sem ancestral posicionado — seu bloco contentor
           virava o documento, escapando de todo `overflow` da cadeia e
-          esticando a área rolável da página (specs/006 research.md R1). */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          esticando a área rolável da página (specs/006 research.md R1).
+          `draggable={false}` aqui: o card pai é `draggable`, e sem opt-out
+          explícito um mousedown no trigger do Select pode ser capturado
+          pelo navegador como início de arrasto do card ao redor em vez de
+          abrir o dropdown (specs/009). */}
+      <div draggable={false} className="flex items-center gap-1 text-xs text-muted-foreground">
         <Select
           value={columnName}
           onValueChange={(value) => onMove(String(value))}

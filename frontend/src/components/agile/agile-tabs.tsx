@@ -11,8 +11,7 @@ import { mostSpecificMatch } from "@/lib/nav";
 const TABS = [
   { label: "Painel", href: "/agile" },
   { label: "Backlog", href: "/agile/backlog" },
-  { label: "Quadro Scrum", href: "/agile/scrum" },
-  { label: "Quadro Kanban", href: "/agile/kanban" },
+  { label: "Quadro", href: "/agile/quadro" },
 ] as const;
 
 export function AgileTabs() {

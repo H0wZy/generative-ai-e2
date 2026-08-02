@@ -62,8 +62,8 @@ export default async function AgileDashboard() {
           {/* `goal` vazio no Jira é ausência de objetivo, não objetivo vazio. */}
           <p className="text-sm text-muted-foreground">{sprint.goal ?? "Sem objetivo definido no Jira"}</p>
         </div>
-        <Link href="/agile/scrum" className={LINK_CLASS}>
-          Abrir quadro Scrum
+        <Link href="/agile/quadro?escopo=sprint" className={LINK_CLASS}>
+          Abrir quadro
         </Link>
       </header>
 
