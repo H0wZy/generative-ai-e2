@@ -1,7 +1,7 @@
 // Seções fechadas de FR-003. `implemented: false` roteia para
 // /em-construcao/[secao] (FR-004) em vez de link inerte.
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   Blocks,
   BookOpen,
@@ -46,7 +46,7 @@ export const NAV: Record<Workspace, NavItem[]> = {
     { label: "Assets", href: "/em-construcao/assets", implemented: false },
     { label: "Base de Conhecimento", href: "/em-construcao/base-de-conhecimento", implemented: false },
     { label: "Automações", href: "/em-construcao/automacoes", implemented: false },
-    { label: "Assistente de IA", href: "/assistant", implemented: true },
+    { label: "Assistente de IA", href: "/ai/chat", implemented: true },
     { label: "Administração", href: "/em-construcao/administracao", implemented: false },
   ],
   agile: [
@@ -57,7 +57,7 @@ export const NAV: Record<Workspace, NavItem[]> = {
     // "/agile") ficar destacado ao mesmo tempo que qualquer uma delas (o
     // prefixo "/agile/" bate nos dois).
     { label: "Dashboard", href: "/agile", implemented: true },
-    { label: "Assistente de IA", href: "/assistant", implemented: true },
+    { label: "Assistente de IA", href: "/ai/chat", implemented: true },
     { label: "Administração", href: "/em-construcao/administracao", implemented: false },
   ],
 };
@@ -89,36 +89,66 @@ export function workspaceFor(pathname: string): Workspace | null {
 
 const WORKSPACE_STORAGE_KEY = "active-workspace";
 
-function readStoredWorkspace(): Workspace {
-  if (typeof window === "undefined") return "itsm";
+const workspaceListeners = new Set<() => void>();
+
+function getStoredWorkspaceSnapshot(): Workspace {
   return window.localStorage.getItem(WORKSPACE_STORAGE_KEY) === "agile" ? "agile" : "itsm";
+}
+
+// SSR nunca vê localStorage — o servidor sempre devolve "itsm". Fixar isso
+// como snapshot de servidor garante que a primeira renderização no cliente
+// bate byte a byte com o HTML do servidor (React usa este snapshot até a
+// hidratação terminar), o que elimina a divergência na raiz em vez de
+// mascará-la: antes, `useState(() => ... ?? readStoredWorkspace())` lia
+// localStorage já na primeira renderização do cliente, que podia divergir do
+// "itsm" fixo do servidor e disparar `Hydration failed`.
+function getServerWorkspaceSnapshot(): Workspace {
+  return "itsm";
+}
+
+function subscribeToWorkspace(listener: () => void): () => void {
+  workspaceListeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => {
+    workspaceListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+function writeStoredWorkspace(workspace: Workspace): void {
+  window.localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace);
+  workspaceListeners.forEach((listener) => listener());
 }
 
 /**
  * Workspace ativo da UI: preserva o último valor inequívoco em vez de
  * assumir ITSM em rota compartilhada (FR-056, corrige o bug de troca
- * sozinha). Persistido em localStorage porque `/assistant` é uma rota fora
+ * sozinha). Persistido em localStorage porque `/ai/chat` é uma rota fora
  * do grupo `(shell)` — navegar até ela desmonta a sidebar do shell e monta
  * uma instância nova (specs/005), que sem isso perderia de vista qual
  * workspace estava ativo e caía sempre em ITSM. Compartilhado pela sidebar
  * única (app-sidebar.tsx) e pela Topbar, pra nunca divergirem.
  */
 export function useActiveWorkspace(pathname: string): Workspace {
-  const [workspace, setWorkspace] = useState<Workspace>(() => workspaceFor(pathname) ?? readStoredWorkspace());
+  const stored = useSyncExternalStore(
+    subscribeToWorkspace,
+    getStoredWorkspaceSnapshot,
+    getServerWorkspaceSnapshot,
+  );
+  const resolved = workspaceFor(pathname);
 
   useEffect(() => {
-    const resolved = workspaceFor(pathname);
-    if (resolved) {
-      setWorkspace(resolved);
-      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, resolved);
-    }
-  }, [pathname]);
+    if (resolved) writeStoredWorkspace(resolved);
+  }, [resolved]);
 
-  return workspace;
+  return resolved ?? stored;
 }
 
 /** Rótulo da seção ativa, para a topbar. Item mais específico vence. */
 export function sectionLabel(pathname: string): string {
+  // Fora do NAV de propósito (A-004): "Arquivadas" é um destino próprio, não
+  // uma seção sempre visível na barra lateral.
+  if (pathname.startsWith("/ai/arquivadas")) return "Conversas arquivadas";
   // Rota compartilhada existe com o mesmo rótulo nos dois arrays de NAV
   // (Home, Assistente de IA, Administração) — "itsm" é só um array de busca,
   // não uma afirmação sobre o workspace ativo.
