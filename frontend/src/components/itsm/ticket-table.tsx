@@ -24,6 +24,17 @@ const PRIORITY_TONE: Record<string, BadgeVariant> = {
   low: "neutral",
 };
 
+// Squad canônica é "SQUAD-0N" (ver backend/app/domain/squads.py); exibição
+// pedida é "SquadN" (sem hífen, sem zero à esquerda). Só apresentação — o
+// valor que trafega no filtro/querystring continua sendo o canônico
+// (specs/012, evita quebrar `?squad=SQUAD-04`).
+const SQUAD_LABEL_RE = /^SQUAD-0*(\d+)$/;
+
+export function formatSquadLabel(squadId: string): string {
+  const match = SQUAD_LABEL_RE.exec(squadId);
+  return match ? `Squad${match[1]}` : squadId;
+}
+
 export function TicketTable({
   items,
   backHref,
@@ -69,7 +80,9 @@ export function TicketTable({
               <TableCell>
                 <Badge variant={status.tone}>{status.label}</Badge>
               </TableCell>
-              <TableCell className="text-muted-foreground">{item.squad_id ?? "—"}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {item.squad_id ? formatSquadLabel(item.squad_id) : "—"}
+              </TableCell>
               {/* Sem prazo na origem: nenhuma coluna de SLA existe no schema. */}
               <TableCell className="text-muted-foreground">
                 <span title="sem prazo conhecido na origem">—</span>

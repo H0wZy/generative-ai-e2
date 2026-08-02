@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatSquadLabel } from "./ticket-table";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -115,7 +116,7 @@ export function TicketFilters({ squads }: { squads: string[] }) {
         label="Squad"
         name="squad"
         defaultValue={params.get("squad") ?? ""}
-        options={[["", "Todas as squads"], ...squads.map((s) => [s, s] as const)]}
+        options={[["", "Todas as squads"], ...squads.map((s) => [s, formatSquadLabel(s)] as const)]}
       />
 
       <Button type="submit" variant="default" disabled={isPending}>
