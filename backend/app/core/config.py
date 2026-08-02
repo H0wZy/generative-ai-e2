@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     assistant_max_tokens: int = 600
     openrouter_api_key: SecretStr | None = None
 
+    # Anexo efêmero por conversa (specs/013) — teto de upload por tipo de
+    # arquivo (FR-003) e endpoint/modelo de OCR local via Ollama (FR-011).
+    attachment_max_bytes_text: int = 5_000_000
+    attachment_max_bytes_pdf: int = 20_000_000
+    ocr_base_url: str = "http://localhost:11434"
+    ocr_model: str = "frob/unlimited-ocr:f16"
+
     @property
     def jira_is_configured(self) -> bool:
         return bool(

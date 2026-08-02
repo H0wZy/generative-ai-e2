@@ -8,7 +8,7 @@ import { PanelLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getOrCreateSessionId } from "@/lib/session";
 import { useConversations } from "@/lib/use-conversations";
-import type { AssistantAnswer, AssistantMessage, ConversationSummary } from "@/lib/types";
+import type { AssistantAnswer, AssistantMessage, AttachmentSummary, ConversationSummary } from "@/lib/types";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 
 import { ChatComposer } from "./chat-composer";
@@ -158,9 +158,15 @@ function ConversationPane({
   // Some conversas nascem já com id (URL) mas só existem de fato no servidor
   // depois da 1ª pergunta enviada nesta instância (criação preguiçosa).
   const [activeConversationId, setActiveConversationId] = useState<string | null>(conversationId);
+  const [attachment, setAttachment] = useState<AttachmentSummary | null>(null);
+  const [attachmentPending, setAttachmentPending] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
 
-  // Vazio durante SSR (getOrCreateSessionId só resolve no navegador).
+  // Vazio durante SSR (getOrCreateSessionId só resolve no navegador). Ref pra
+  // uso em handlers/efeitos; `sessionId` (estado) é o mesmo valor, só que
+  // seguro de ler durante o render (cards de anexo precisam disso na JSX).
   const sessionIdRef = useRef("");
+  const [sessionId, setSessionId] = useState("");
   const lastQuestionRef = useRef("");
 
   const activeConversationTitle =
@@ -172,6 +178,7 @@ function ConversationPane({
 
   useEffect(() => {
     sessionIdRef.current = getOrCreateSessionId();
+    setSessionId(sessionIdRef.current);
     if (!conversationId || !UUID_RE.test(conversationId)) return;
     void (async () => {
       const result = await apiFetch<{ messages: ConversationMessage[]; conversation: ConversationSummary }>(
@@ -201,6 +208,17 @@ function ConversationPane({
       setArchivedAt(result.data.conversation.archived_at);
       setConversationTitle(result.data.conversation.title);
       setLoadState("loaded");
+
+      // Estado do anexo é buscado à parte (contracts/attachment-api.md GET):
+      // `{"attachment": null}` quando não há anexo, ou o objeto completo.
+      const attachmentResult = await apiFetch<AttachmentSummary | { attachment: null }>(
+        `/api/v1/assistant/conversations/${conversationId}/attachment`,
+        { headers: { "X-Session-Id": sessionIdRef.current } },
+      );
+      if (attachmentResult.ok) {
+        const data = attachmentResult.data;
+        setAttachment("id" in data ? data : null);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só uma vez: o id é fixo pra esta instância (remonta em vez de reagir a troca).
   }, []);
@@ -220,6 +238,50 @@ function ConversationPane({
     window.history.replaceState(null, "", `/ai/chat/${result.data.id}`);
     void refresh();
     return result.data.id;
+  }
+
+  async function uploadAttachment(file: File) {
+    const id = await ensureConversationId();
+    if (!id) {
+      setAttachmentError("Não foi possível anexar: conversa indisponível.");
+      return;
+    }
+    setAttachmentPending(true);
+    setAttachmentError(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    // Sem content-type manual: o navegador define o boundary do multipart.
+    const result = await apiFetch<AttachmentSummary>(
+      `/api/v1/assistant/conversations/${id}/attachment`,
+      { method: "POST", headers: { "X-Session-Id": sessionIdRef.current }, body: formData },
+    );
+    setAttachmentPending(false);
+    if (!result.ok) {
+      setAttachmentError(
+        result.error.status === 413
+          ? "Arquivo acima do limite permitido."
+          : result.error.status === 422
+            ? "Formato não suportado. Envie .md, .txt ou .pdf."
+            : "Não foi possível enviar o documento. Tente novamente.",
+      );
+      return;
+    }
+    setAttachment(result.data);
+    if (result.data.status === "failed") {
+      setAttachmentError(result.data.error_reason ?? "Não foi possível processar o documento.");
+    }
+  }
+
+  async function removeAttachment() {
+    if (!activeConversationId) return;
+    const result = await apiFetch<void>(
+      `/api/v1/assistant/conversations/${activeConversationId}/attachment`,
+      { method: "DELETE", headers: { "X-Session-Id": sessionIdRef.current } },
+    );
+    if (result.ok) {
+      setAttachment(null);
+      setAttachmentError(null);
+    }
   }
 
   async function postQuestion(question: string) {
@@ -287,7 +349,16 @@ function ConversationPane({
   }
 
   function handleSubmit(text: string) {
-    setTurns((current) => [...current, { kind: "user", text }]);
+    // Snapshot do anexo ativo NA mensagem enviada — o chip passa a viver
+    // junto dela na transcrição, igual claude.ai, em vez de ficar preso
+    // acima do textarea (o anexo em si continua valendo pro backend nas
+    // próximas perguntas desta conversa; só a exibição no composer é
+    // "consumida" pelo envio).
+    setTurns((current) => [...current, { kind: "user", text, attachment }]);
+    if (attachment) {
+      setAttachment(null);
+      setAttachmentError(null);
+    }
     void postQuestion(text);
   }
 
@@ -358,6 +429,8 @@ function ConversationPane({
                     onRetry={handleRetry}
                     onSuggestion={handleSubmit}
                     animateLastAssistant={animateNext}
+                    conversationId={activeConversationId}
+                    sessionId={sessionId}
                   />
                 </MessageScrollerContent>
               </MessageScrollerViewport>
@@ -367,7 +440,17 @@ function ConversationPane({
 
           <div className="bg-gradient-to-t from-v0-background via-v0-background to-transparent px-4 pb-5 pt-2 sm:px-6">
             <div className="mx-auto w-full max-w-[900px]">
-              <ChatComposer onSubmit={handleSubmit} pending={pending} />
+              <ChatComposer
+                onSubmit={handleSubmit}
+                pending={pending}
+                attachment={attachment}
+                attachmentPending={attachmentPending}
+                attachmentError={attachmentError}
+                conversationId={activeConversationId}
+                sessionId={sessionId}
+                onAttach={(file) => void uploadAttachment(file)}
+                onRemoveAttachment={() => void removeAttachment()}
+              />
             </div>
           </div>
         </>

@@ -3,6 +3,7 @@ testável: cada modo de falha tem valor próprio, não string de erro variável.
 """
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -16,6 +17,10 @@ AssistantStatus = Literal[
     "timeout",
     "disabled",
 ]
+
+# Anexo efêmero por conversa (specs/013) — enum fechado, mesmo padrão de
+# AssistantStatus. Sem transição de volta (data-model.md §1).
+AttachmentStatus = Literal["received", "processing", "ready", "failed"]
 
 
 class AssistantMessage(BaseModel):
@@ -55,3 +60,21 @@ class AssistantAnswer(BaseModel):
     sources: list[RetrievedSource]
     truncated_history: bool
     ticket_context: TicketRefSource | None = None
+
+
+class AttachmentSummary(BaseModel):
+    """Forma de resposta das 3 rotas de anexo (contracts/attachment-api.md)."""
+
+    id: uuid.UUID
+    file_name: str
+    mime_type: str
+    size_bytes: int
+    status: AttachmentStatus
+    error_reason: str | None = None
+
+
+class AttachmentRetrievedSource(RetrievedSource):
+    """Mesma forma de RetrievedSource — file_path = nome do arquivo anexado,
+    heading_path = caminho completo folha->raiz encontrado na árvore
+    (data-model.md §3). Sem campo novo: nada a acrescentar aqui.
+    """

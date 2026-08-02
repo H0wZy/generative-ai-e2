@@ -281,6 +281,18 @@ export interface AssistantAnswer {
   ticket_context: TicketRefSource | null;
 }
 
+// Anexo efêmero de documento por conversa (specs/013-upload-documento-treerag).
+export type AttachmentStatus = "received" | "processing" | "ready" | "failed";
+
+export interface AttachmentSummary {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  status: AttachmentStatus;
+  error_reason: string | null;
+}
+
 export interface ConversationSummary {
   id: string;
   title: string;

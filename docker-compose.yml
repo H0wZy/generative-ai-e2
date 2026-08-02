@@ -18,8 +18,8 @@ services:
 
   api:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     # Credenciais vêm do arquivo, nunca do compose — o compose é versionado.
@@ -44,8 +44,8 @@ services:
   # da vez em que é chamado.
   worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     command: ["python", "-m", "app.worker", "--loop"]
     restart: unless-stopped
     env_file:

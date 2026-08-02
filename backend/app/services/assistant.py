@@ -178,8 +178,16 @@ def ask(
     model_client_factory,
     max_context_chars: int,
     ticket_lookup: Callable[[str], WorkflowDetail | None] | None = None,
+    attachment_search: Callable[[str], list[RetrievedSource]] | None = None,
 ) -> AssistantAnswer:
-    """`model_client_factory` só não é chamado quando o assistente está desligado."""
+    """`model_client_factory` só não é chamado quando o assistente está desligado.
+
+    `attachment_search` (specs/013, T015/T020): busca na árvore do anexo da
+    conversa quando `status == "ready"` — `None` quando não há anexo pronto,
+    mesmo caminho de "sem trecho para citar" que a busca RAG já trata. O
+    limiar de distância/ausência de evidência é aplicado dentro da própria
+    busca em árvore (`attachment_tree.search`), não aqui.
+    """
     if not enabled:
         return AssistantAnswer(
             status="disabled", answer=None, sources=[], truncated_history=False
@@ -192,6 +200,12 @@ def ask(
         # segue sendo chamado, só que sem trecho para citar — mesmo caminho
         # de uma busca que legitimamente não achou nada.
         sources = []
+
+    if attachment_search is not None:
+        # Mesma lista, mesmo tratamento: `_build_user_prompt` envolve todo
+        # `source.content` em <untrusted_document> (T021) sem distinguir
+        # origem RAG de origem anexo.
+        sources = [*sources, *attachment_search(payload.question)]
 
     ticket_context = _find_ticket_context(payload.question, ticket_lookup)
 

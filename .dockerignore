@@ -3,13 +3,14 @@
 *.env
 !.env.example
 
-# Diretórios que não pertencem à imagem do rag
-backend/
-frontend/
+# Diretórios que não pertencem à imagem de qualquer serviço
 evidence/
 specs/
 .specify/
 .claude/
+# frontend/ nunca é referenciado por nenhum COPY (api/worker/rag-search
+# copiam só backend/ e rag/) — excluído pra manter o build context pequeno.
+frontend/
 
 # Python
 __pycache__/

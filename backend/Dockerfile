@@ -7,12 +7,19 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml requirements.txt ./
+COPY backend/pyproject.toml backend/requirements.txt ./
 
 # Install runtime dependencies only (no dev extras)
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy backend application code
+COPY backend/app ./app
+
+# Copy RAG library components (chunking, embeddings, and db config only, not data or http)
+COPY rag/__init__.py ./rag/
+COPY rag/db.py ./rag/
+COPY rag/chunking ./rag/chunking
+COPY rag/embeddings ./rag/embeddings
 
 EXPOSE 8000
 

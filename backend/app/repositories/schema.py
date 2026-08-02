@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -222,6 +223,13 @@ class AssistantConversationRow(Base):
         order_by="AssistantMessageRow.created_at",
         passive_deletes=True,
     )
+    # Um anexo por conversa — `passive_deletes=True` para confiar no FK
+    # `ondelete="CASCADE"` em vez de deixar o ORM tentar excluir em cascata.
+    attachment: Mapped[AssistantAttachmentRow | None] = relationship(
+        back_populates="conversation",
+        uselist=False,
+        passive_deletes=True,
+    )
 
 
 class AssistantMessageRow(Base):
@@ -245,4 +253,87 @@ class AssistantMessageRow(Base):
 
     __table_args__ = (
         Index("ix_assistant_messages_conversation_created", "conversation_id", "created_at"),
+    )
+
+
+class AssistantAttachmentRow(Base):
+    __tablename__ = "assistant_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    # Um anexo por conversa — `unique=True` garante que
+    # `create_or_replace` possa usar UPSERT.
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assistant_conversations.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    # Nome original do arquivo, exibido na UI (FR-013).
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Detectado por assinatura de conteúdo, não só extensão.
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Validado contra `attachment_max_bytes_*` antes de processar.
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Enum fechado: `received`, `processing`, `ready`, `failed`.
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Preenchido só quando `status = "failed"` — mensagem estática, nunca
+    # conteúdo do arquivo (constituição IV).
+    error_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Texto extraído (pré-chunking), só quando `status = "ready"` — permite
+    # visualizar o documento inteiro sem reconstruir a partir dos nós da
+    # árvore (raiz/seções são truncados, folhas podem se sobrepor).
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    conversation: Mapped[AssistantConversationRow] = relationship(back_populates="attachment")
+    # `passive_deletes=True`: confiar no `ondelete="CASCADE"` do FK em vez
+    # do ORM tentar excluir nós em cascata.
+    nodes: Mapped[list[AssistantAttachmentNodeRow]] = relationship(
+        back_populates="attachment",
+        passive_deletes=True,
+    )
+
+
+class AssistantAttachmentNodeRow(Base):
+    __tablename__ = "assistant_attachment_nodes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    # FK → assistant_attachments.id ON DELETE CASCADE.
+    attachment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assistant_attachments.id", ondelete="CASCADE"), nullable=False
+    )
+    # FK autorreferencial para construir a árvore. NULL só na raiz.
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("assistant_attachment_nodes.id", ondelete="CASCADE"), nullable=True
+    )
+    # Enum fechado: `root`, `section`, `leaf`.
+    node_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    # 0 na raiz, cresce por nível de heading.
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Caminho completo até este nó (ex.: "Decisões > RAG > Modelo").
+    heading_path: Mapped[str] = mapped_column(Text, nullable=False)
+    # Folha: trecho literal do documento. Seção/raiz: concatenação truncada
+    # dos filhos (usada só para embedding, nunca citada diretamente).
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Serializado com `serialize_embedding` (mesmo formato do RAG).
+    # NULL só em estado transitório; nunca NULL quando `status = ready`.
+    embedding: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # Só em folhas — NULL em root/section.
+    start_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Só em folhas — NULL em root/section.
+    end_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    attachment: Mapped[AssistantAttachmentRow] = relationship(back_populates="nodes")
+    # Autorreferência para navegação sobe/desce na árvore.
+    parent: Mapped[AssistantAttachmentNodeRow | None] = relationship(
+        back_populates="children",
+        remote_side=[id],
+        foreign_keys=[parent_id],
+    )
+    children: Mapped[list[AssistantAttachmentNodeRow]] = relationship(
+        back_populates="parent",
+        remote_side=[parent_id],
+    )
+
+    __table_args__ = (
+        Index("ix_assistant_attachment_nodes_attachment_type", "attachment_id", "node_type"),
     )

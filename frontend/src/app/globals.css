@@ -423,6 +423,26 @@ body {
   animation: suggestion-in 400ms ease-out;
 }
 
+/* Usado por AttachmentTitle (components/ui/attachment.tsx) nos estados
+   uploading/processing — a lib shadcn assume essa classe pronta, o
+   registro não empacota o CSS junto do componente. */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 40%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 60%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+
 /* Cursor piscante do typewriter — vai depois do último bloco de Markdown já
    revelado. A classe só é aplicada na cópia VISÍVEL da pilha de grid do
    TypewriterMessage; a cópia invisível que reserva a altura não a recebe, então

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
-import type { AssistantAnswer, AssistantStatus } from "@/lib/types";
+import type { AssistantAnswer, AssistantStatus, AttachmentSummary } from "@/lib/types";
 
 import { Button } from "./v0/button";
 import { EmptyState } from "./empty-state";
@@ -11,7 +11,9 @@ import { LoadingIndicator } from "./loading-indicator";
 import { MessageBubble } from "./message-bubble";
 import { MessageScrollerItem } from "@/components/ui/message-scroller";
 
-export type Turn = { kind: "user"; text: string } | { kind: "assistant"; answer: AssistantAnswer };
+export type Turn =
+  | { kind: "user"; text: string; attachment?: AttachmentSummary | null }
+  | { kind: "assistant"; answer: AssistantAnswer };
 
 const STATUS_NOTICE: Record<Exclude<AssistantStatus, "answered">, string> = {
   rate_limited:
@@ -38,9 +40,22 @@ interface ConversationViewProps {
   onRetry: () => void;
   onSuggestion: (text: string) => void;
   animateLastAssistant?: boolean;
+  // Repassados só pro card do anexo (specs/013 follow-up: visualizar
+  // conteúdo clicando no card já enviado na transcrição).
+  conversationId?: string | null;
+  sessionId?: string;
 }
 
-export function ConversationView({ turns, pending, failure, onRetry, onSuggestion, animateLastAssistant = true }: ConversationViewProps) {
+export function ConversationView({
+  turns,
+  pending,
+  failure,
+  onRetry,
+  onSuggestion,
+  animateLastAssistant = true,
+  conversationId,
+  sessionId,
+}: ConversationViewProps) {
   // Ícone só na última resposta do modelo (igual claude.ai) — mensagens
   // anteriores ficam sem avatar repetido.
   const lastAssistantIndex = turns.reduce(
@@ -64,7 +79,13 @@ export function ConversationView({ turns, pending, failure, onRetry, onSuggestio
         if (turn.kind === "user") {
           return (
             <MessageScrollerItem key={index} messageId={`turn-${index}`} scrollAnchor>
-              <MessageBubble role="user" text={turn.text} />
+              <MessageBubble
+                role="user"
+                text={turn.text}
+                attachment={turn.attachment}
+                conversationId={conversationId}
+                sessionId={sessionId}
+              />
             </MessageScrollerItem>
           );
         }

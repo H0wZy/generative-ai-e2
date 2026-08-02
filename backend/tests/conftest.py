@@ -63,6 +63,8 @@ def engine(test_database_url: str):
 # Tables in dependency order so FK constraints don't break TRUNCATE CASCADE
 _TABLES = [
     "sync_state",
+    "assistant_attachment_nodes",
+    "assistant_attachments",
     "assistant_messages",
     "assistant_conversations",
     "audit_logs",
