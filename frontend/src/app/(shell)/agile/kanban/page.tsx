@@ -25,10 +25,10 @@ export default async function KanbanBoard() {
   const { columns } = result.data.data;
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6">
-      <header>
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 md:p-6">
+      <header className="shrink-0">
         <h2 className="text-xl font-semibold text-text">Quadro Kanban</h2>
-        <p className="text-sm text-muted">Todas as issues do board</p>
+        <p className="text-sm text-muted-foreground">Todas as issues do board</p>
       </header>
       {columns.length > 0 ? (
         <Board initialColumns={columns} />

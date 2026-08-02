@@ -45,7 +45,7 @@ export default async function EmConstrucao({
       <Card title={info.titulo}>
         <div className="flex flex-col gap-2 py-6 text-center">
           <p className="text-sm font-medium text-text">Seção em construção</p>
-          <p className="mx-auto max-w-prose text-xs text-muted">{info.descricao}</p>
+          <p className="mx-auto max-w-prose text-xs text-muted-foreground">{info.descricao}</p>
         </div>
       </Card>
     </div>

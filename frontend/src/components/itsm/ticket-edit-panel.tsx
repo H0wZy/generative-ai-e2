@@ -45,7 +45,7 @@ export function TicketEditPanel({
   }
 
   if (resolved) {
-    return <p className="text-sm text-muted">Chamado concluído — edição desabilitada.</p>;
+    return <p className="text-sm text-muted-foreground">Chamado concluído — edição desabilitada.</p>;
   }
 
   return (
@@ -57,7 +57,7 @@ export function TicketEditPanel({
         disabled={pending}
       />
       {feedback && (
-        <p role="status" className="text-xs text-muted">
+        <p role="status" className="text-xs text-muted-foreground">
           {feedback}
         </p>
       )}

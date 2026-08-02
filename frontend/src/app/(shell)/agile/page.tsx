@@ -5,7 +5,7 @@ import { Burndown } from "@/components/charts/burndown";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Stat } from "@/components/ui/stat";
-import { Tag } from "@/components/ui/tag";
+import { Badge } from "@/components/ui/badge";
 import { UnavailableState } from "@/components/ui/unavailable-state";
 import { apiFetch } from "@/lib/api";
 import type { Availability, SprintDashboard } from "@/lib/types";
@@ -60,7 +60,7 @@ export default async function AgileDashboard() {
         <div>
           <h2 className="text-xl font-semibold text-text">{sprint.name}</h2>
           {/* `goal` vazio no Jira é ausência de objetivo, não objetivo vazio. */}
-          <p className="text-sm text-muted">{sprint.goal ?? "Sem objetivo definido no Jira"}</p>
+          <p className="text-sm text-muted-foreground">{sprint.goal ?? "Sem objetivo definido no Jira"}</p>
         </div>
         <Link href="/agile/scrum" className={LINK_CLASS}>
           Abrir quadro Scrum
@@ -117,11 +117,11 @@ export default async function AgileDashboard() {
                   key={item.key}
                   className="flex flex-wrap items-center gap-2 border-b border-divider pb-2 last:border-0"
                 >
-                  <span className="font-mono text-xs text-muted">{item.key}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{item.key}</span>
                   <span className="text-sm text-text">{item.title}</span>
-                  <Tag tone="danger">{item.blocked_reason}</Tag>
+                  <Badge variant="danger">{item.blocked_reason}</Badge>
                   {item.assignee && (
-                    <span className="text-xs text-muted">{item.assignee.display_name}</span>
+                    <span className="text-xs text-muted-foreground">{item.assignee.display_name}</span>
                   )}
                 </li>
               ))}

@@ -16,7 +16,7 @@ export function ErrorState({
     <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
       <div>
         <p className="text-sm font-medium text-text">{title}</p>
-        {message && <p className="mt-1 text-xs text-muted">{message}</p>}
+        {message && <p className="mt-1 text-xs text-muted-foreground">{message}</p>}
       </div>
       {onRetry && (
         <Button variant="secondary" onClick={onRetry}>

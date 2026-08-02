@@ -84,7 +84,7 @@ export function Burndown({ series, height = 160 }: { series: BurndownSeries; hei
           {series.days[lastLabel]?.slice(5)}
         </text>
       </svg>
-      <figcaption className="mt-2 flex gap-4 text-xs text-muted">
+      <figcaption className="mt-2 flex gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-px w-4 border-t border-dashed border-current" />
           Ideal

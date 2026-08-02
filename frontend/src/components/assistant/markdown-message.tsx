@@ -60,9 +60,9 @@ function CodeBlock({ className, children }: ComponentProps<"code">) {
   );
 }
 
-export function MarkdownMessage({ content }: { content: string }) {
+export function MarkdownMessage({ content, className }: { content: string; className?: string }) {
   return (
-    <div className="text-pretty text-sm leading-relaxed text-v0-foreground">
+    <div className={`text-pretty text-sm leading-relaxed text-v0-foreground ${className ?? ""}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

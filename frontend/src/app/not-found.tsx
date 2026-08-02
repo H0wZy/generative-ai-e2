@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
       <p className="text-sm font-medium text-text">Página não encontrada</p>
-      <p className="text-xs text-muted">
+      <p className="text-xs text-muted-foreground">
         O endereço acessado não existe nesta plataforma.
       </p>
       <Link

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { NewTicketDialog } from "@/components/itsm/new-ticket-dialog";
 import { TicketFilters } from "@/components/itsm/ticket-filters";
 import { TicketTable } from "@/components/itsm/ticket-table";
 import { Card } from "@/components/ui/card";
@@ -52,16 +53,15 @@ export default async function ItsmQueue({
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-text">Fila de tickets</h2>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted-foreground">
             {page.ok ? `${page.data.total} execução(ões) no recorte atual` : "total indisponível"}
           </p>
         </div>
-        <Link
-          href="/itsm/new"
-          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-neutral-100 transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-        >
-          Novo chamado
-        </Link>
+        {/* Cartão de ação que abre o formulário em diálogo sobre esta tela, em
+            vez de navegar para `/itsm/new` (rota removida). Com `bg-primary`
+            (quase branco no tema escuro) isto era o elemento de maior contraste
+            da tela e roubava a atenção da fila, que é o conteúdo principal. */}
+        <NewTicketDialog />
       </header>
 
       <TicketFilters squads={squads} />
@@ -89,9 +89,9 @@ export default async function ItsmQueue({
               Anterior
             </Link>
           ) : (
-            <span className="text-muted">Anterior</span>
+            <span className="text-muted-foreground">Anterior</span>
           )}
-          <span className="text-muted tabular-nums">
+          <span className="text-muted-foreground tabular-nums">
             {offset + 1}–{Math.min(offset + PAGE_SIZE, page.data.total)} de {page.data.total}
           </span>
           {offset + PAGE_SIZE < page.data.total ? (
@@ -102,7 +102,7 @@ export default async function ItsmQueue({
               Próxima
             </Link>
           ) : (
-            <span className="text-muted">Próxima</span>
+            <span className="text-muted-foreground">Próxima</span>
           )}
         </nav>
       )}

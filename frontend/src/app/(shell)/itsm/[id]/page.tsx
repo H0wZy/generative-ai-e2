@@ -6,7 +6,7 @@ import { TicketEditPanel } from "@/components/itsm/ticket-edit-panel";
 import type { TicketFormValues } from "@/components/itsm/ticket-form";
 import { Timeline } from "@/components/itsm/timeline";
 import { Card } from "@/components/ui/card";
-import { Tag } from "@/components/ui/tag";
+import { Badge } from "@/components/ui/badge";
 import { UnavailableState } from "@/components/ui/unavailable-state";
 import { apiFetch } from "@/lib/api";
 import type { WorkflowDetail } from "@/lib/types";
@@ -17,7 +17,7 @@ const LINK_CLASS =
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-wide text-muted">{label}</dt>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm text-text">{children}</dd>
     </div>
   );
@@ -58,7 +58,7 @@ export default async function TicketDetailPage({
       </div>
 
       <header className="flex flex-col gap-1">
-        <p className="font-mono text-xs text-muted">{detail.ticket.source_ticket_id}</p>
+        <p className="font-mono text-xs text-muted-foreground">{detail.ticket.source_ticket_id}</p>
         {/* Conteúdo externo não confiável: texto, nunca HTML. */}
         <h2 className="text-xl font-semibold text-text">{detail.ticket.subject}</h2>
       </header>
@@ -67,7 +67,7 @@ export default async function TicketDetailPage({
         <Card title="Execução" className="lg:col-span-2">
           <dl className="grid gap-3 sm:grid-cols-2">
             <Field label="Status">
-              <Tag tone={detail.reprocess_eligible ? "danger" : "success"}>{detail.status}</Tag>
+              <Badge variant={detail.reprocess_eligible ? "danger" : "success"}>{detail.status}</Badge>
             </Field>
             <Field label="Tentativas">{detail.attempt_count}</Field>
             <Field label="Squad">{detail.squad_id ?? "—"}</Field>
@@ -103,12 +103,12 @@ export default async function TicketDetailPage({
               ) : (
                 <p className="font-mono text-sm text-text">{detail.jira_issue_key}</p>
               )}
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 origem do vínculo: {detail.link_origin ?? "—"}
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted">Nenhuma issue vinculada.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma issue vinculada.</p>
           )}
         </Card>
 
@@ -122,7 +122,7 @@ export default async function TicketDetailPage({
               {detail.resolved_at ? new Date(detail.resolved_at).toLocaleString("pt-BR") : "—"}
             </Field>
           </dl>
-          <p className="mt-3 whitespace-pre-wrap text-sm text-muted">
+          <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
             {detail.ticket.description}
           </p>
         </Card>

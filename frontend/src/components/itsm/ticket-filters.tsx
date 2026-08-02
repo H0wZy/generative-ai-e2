@@ -4,6 +4,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -26,6 +33,36 @@ const PRIORITY_OPTIONS = [
 const FIELD =
   "min-h-9 rounded-md border border-divider bg-surface px-2 text-sm text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
+function FilterSelect({
+  label,
+  name,
+  defaultValue,
+  options,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  options: readonly (readonly [string, string])[];
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <Select name={name} defaultValue={defaultValue} items={options.map(([value, l]) => ({ value, label: l }))}>
+        <SelectTrigger className={`${FIELD} min-w-44 gap-2`} aria-label={label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(([value, l]) => (
+            <SelectItem key={value} value={value} className="text-sm">
+              {l}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
+  );
+}
+
 // O recorte vive em `searchParams`, não em estado local: assim ele sobrevive
 // à recarga e volta intacto do detalhe (FR-016, FR-021).
 export function TicketFilters({ squads }: { squads: string[] }) {
@@ -46,53 +83,42 @@ export function TicketFilters({ squads }: { squads: string[] }) {
   return (
     <form action={apply} className="flex flex-wrap items-end gap-2">
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Busca</span>
+        <span className="text-xs text-muted-foreground">Busca</span>
         <input
           name="q"
           type="search"
           aria-label="Buscar por assunto ou identificador"
           maxLength={120}
           defaultValue={params.get("q") ?? ""}
-          placeholder="assunto ou identificador"
+          placeholder="Assunto ou identificador..."
           className={FIELD}
         />
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Status</span>
-        <select name="status" defaultValue={params.get("status") ?? ""} className={FIELD}>
-          {STATUS_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* `name` no Root faz o Select manter um input escondido, então o
+          `action={apply}` continua lendo tudo por `FormData` como antes. */}
+      <FilterSelect
+        label="Status"
+        name="status"
+        defaultValue={params.get("status") ?? ""}
+        options={STATUS_OPTIONS}
+      />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Prioridade</span>
-        <select name="priority" defaultValue={params.get("priority") ?? ""} className={FIELD}>
-          {PRIORITY_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <FilterSelect
+        label="Prioridade"
+        name="priority"
+        defaultValue={params.get("priority") ?? ""}
+        options={PRIORITY_OPTIONS}
+      />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Squad</span>
-        <select name="squad" defaultValue={params.get("squad") ?? ""} className={FIELD}>
-          <option value="">Todas as squads</option>
-          {squads.map((squad) => (
-            <option key={squad} value={squad}>
-              {squad}
-            </option>
-          ))}
-        </select>
-      </label>
+      <FilterSelect
+        label="Squad"
+        name="squad"
+        defaultValue={params.get("squad") ?? ""}
+        options={[["", "Todas as squads"], ...squads.map((s) => [s, s] as const)]}
+      />
 
-      <Button type="submit" variant="primary" disabled={isPending}>
+      <Button type="submit" variant="default" disabled={isPending}>
         {isPending ? "Filtrando…" : "Filtrar"}
       </Button>
       <Button type="button" variant="ghost" onClick={() => router.replace("/itsm")}>

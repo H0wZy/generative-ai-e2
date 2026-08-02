@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 
-import { Tag } from "@/components/ui/tag";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { workItemStatusRail } from "@/lib/agile-status";
 import type { BoardColumnView, WorkItem } from "@/lib/types";
 
@@ -90,14 +97,14 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {notice && (
         <p role="alert" className="text-sm text-text">
           {notice}
         </p>
       )}
 
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden pb-2">
         {columns.map((column) => (
           <section
             key={column.name}
@@ -107,13 +114,13 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
               if (dragging) void move(dragging.key, dragging.from, column.name);
               setDragging(null);
             }}
-            className={`flex w-64 shrink-0 flex-col gap-2 rounded-lg bg-surface p-3 shadow-sm ${
+            className={`flex w-64 shrink-0 flex-col gap-2 min-h-0 overflow-y-auto rounded-lg bg-surface p-3 shadow-sm ${
               column.over_wip ? "outline-2 outline-link" : ""
             }`}
           >
             <header className="flex items-baseline justify-between gap-2">
               <h3 className="text-sm font-medium text-text">{column.name}</h3>
-              <span className="text-xs tabular-nums text-muted">
+              <span className="text-xs tabular-nums text-muted-foreground">
                 {column.cards.length}
                 {column.wip_max !== null && ` / ${column.wip_max}`}
               </span>
@@ -134,7 +141,7 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
             ))}
 
             {column.cards.length === 0 && (
-              <p className="py-4 text-center text-xs text-muted">Coluna vazia</p>
+              <p className="py-4 text-center text-xs text-muted-foreground">Coluna vazia</p>
             )}
           </section>
         ))}
@@ -163,17 +170,17 @@ function BoardCard({
       className={`flex flex-col gap-2 rounded-md border-l-[3px] bg-elevated p-2 ${workItemStatusRail(card)}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-mono text-xs text-muted">{card.key}</span>
+        <span className="font-mono text-xs text-muted-foreground">{card.key}</span>
         {card.points !== null && (
-          <span className="text-xs tabular-nums text-muted">{card.points} pts</span>
+          <span className="text-xs tabular-nums text-muted-foreground">{card.points} pts</span>
         )}
       </div>
       <p className="text-sm text-text">{card.title}</p>
 
       <div className="flex flex-wrap items-center gap-1">
-        {card.epic_name && <Tag tone="accent">{card.epic_name}</Tag>}
+        {card.epic_name && <Badge variant="accent">{card.epic_name}</Badge>}
         {card.labels.map((label) => (
-          <Tag key={label}>{label}</Tag>
+          <Badge key={label}>{label}</Badge>
         ))}
         {card.assignee && (
           <span
@@ -186,22 +193,30 @@ function BoardCard({
       </div>
 
       {/* Arraste não pode ser o único caminho (FR-008): este select dispara a
-          mesma requisição e é operável só com teclado. */}
-      <label className="flex items-center gap-1 text-xs text-muted">
-        <span className="sr-only">Mover {card.key} para</span>
-        <select
+          mesma requisição e é operável só com teclado.
+          Sem `sr-only` aqui: o `aria-label` do próprio select já é o nome
+          acessível efetivo (vence o texto do label), e o span era
+          `position: absolute` sem ancestral posicionado — seu bloco contentor
+          virava o documento, escapando de todo `overflow` da cadeia e
+          esticando a área rolável da página (specs/006 research.md R1). */}
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Select
           value={columnName}
-          onChange={(event) => onMove(event.target.value)}
-          className="min-h-8 w-full rounded-sm border border-divider bg-surface px-1 text-xs text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          aria-label={`Mover ${card.key} para outra coluna`}
+          onValueChange={(value) => onMove(String(value))}
+          items={columnNames.map((name) => ({ label: name, value: name }))}
         >
-          {columnNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger aria-label={`Mover ${card.key} para outra coluna`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {columnNames.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </article>
   );
 }

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PanelLeft } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { getOrCreateSessionId } from "@/lib/session";
+import { useConversations } from "@/lib/use-conversations";
 import type { AssistantAnswer, AssistantMessage, ConversationSummary } from "@/lib/types";
+import { AppSidebar } from "@/components/shell/app-sidebar";
 
 import { ChatComposer } from "./chat-composer";
-import { ConversationSidebar } from "./conversation-sidebar";
 import { ConversationView, type Turn } from "./conversation-view";
 import {
   Breadcrumb,
@@ -18,6 +20,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "./v0/breadcrumb";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 
 const ASK_TIMEOUT_MS = 30000;
 
@@ -32,6 +41,7 @@ interface ConversationMessage {
 }
 
 export function AiAssistant() {
+  const searchParams = useSearchParams();
   const [turns, setTurns] = useState<Turn[]>([]);
   // Token do contexto (conversa) que está com uma pergunta em voo, ou null.
   // "pending" só é true quando esse token bate com o contexto ATUAL — assim
@@ -41,16 +51,20 @@ export function AiAssistant() {
   const [pendingToken, setPendingToken] = useState<number | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [animateNext, setAnimateNext] = useState(false);
+  const {
+    conversations,
+    refresh,
+    toggleFavorite,
+    rename,
+    deleteConversation,
+    removeLocally,
+    restoreLocally,
+  } = useConversations();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   // Vazio durante SSR (getOrCreateSessionId só resolve no navegador).
   const sessionIdRef = useRef("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  // Os tokens de cor `v0-*` só existem dentro de `.v0-assistant` (globals.css)
-  // — menus em portal (context-menu) precisam montar aqui dentro, não em
-  // `document.body`, senão ficam sem cor (var() vazio fora do escopo).
-  const rootRef = useRef<HTMLDivElement>(null);
   const lastQuestionRef = useRef("");
   // Incrementado sempre que o usuário troca de contexto (seleciona outra
   // conversa, ou começa uma nova) — uma resposta que ainda está em voo
@@ -63,25 +77,31 @@ export function AiAssistant() {
     "Nova conversa";
 
   useEffect(() => {
-    const sessionId = getOrCreateSessionId();
-    sessionIdRef.current = sessionId;
-    if (!sessionId) return;
-
-    void apiFetch<{ conversations: ConversationSummary[] }>("/api/v1/assistant/conversations", {
-      headers: { "X-Session-Id": sessionId },
-    }).then((result) => {
-      if (!result.ok) return;
-      setConversations(result.data.conversations);
-      if (result.data.conversations.length > 0) {
-        void loadConversation(result.data.conversations[0].id);
-      }
-    });
+    sessionIdRef.current = getOrCreateSessionId();
+    // Veio da barra lateral do shell (Favoritos/Recentes, specs/005) com uma
+    // conversa específica pedida por query string — abre ela direto, não
+    // precisa esperar a lista chegar (busca a conversa por id).
+    const requested = searchParams.get("c");
+    if (requested) void loadConversation(requested);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só no mount.
   }, []);
 
-  // Auto-scroll para a última mensagem conforme o conteúdo cresce.
+  // Sem pedido explícito por query string: assim que a lista (do hook
+  // compartilhado, specs/005) chegar pela primeira vez, abre a mais recente
+  // — mesmo comportamento de antes, só que a busca agora vive em
+  // useConversations() em vez de duplicada aqui.
+  const autoLoadedFirstRef = useRef(false);
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [turns, pending]);
+    if (searchParams.get("c")) return;
+    if (autoLoadedFirstRef.current) return;
+    if (conversations.length === 0) return;
+    autoLoadedFirstRef.current = true;
+    void loadConversation(conversations[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations]);
+
+  // Auto-scroll para a última mensagem conforme o conteúdo cresce.
+  // (Removido pois agora é gerenciado pelo MessageScrollerProvider)
 
   async function loadConversation(id: string) {
     contextTokenRef.current += 1;
@@ -109,6 +129,7 @@ export function AiAssistant() {
     setActiveConversationId(id);
     setFailure(null);
     setSidebarOpen(false);
+    setAnimateNext(false);
   }
 
   function handleNewConversation() {
@@ -129,7 +150,7 @@ export function AiAssistant() {
     });
     if (!result.ok) return null;
     setActiveConversationId(result.data.id);
-    setConversations((prev) => [result.data, ...prev]);
+    void refresh();
     return result.data.id;
   }
 
@@ -191,57 +212,26 @@ export function AiAssistant() {
       return;
     }
     setTurns((current) => [...current, { kind: "assistant", answer: result.data }]);
+    setAnimateNext(true);
 
     if (conversationId) {
       // Best-effort: título (derivado da 1ª pergunta) e ordenação por
       // updated_at só existem no servidor — refaz a lista pra refletir.
-      const listResult = await apiFetch<{ conversations: ConversationSummary[] }>(
-        "/api/v1/assistant/conversations",
-        { headers: { "X-Session-Id": sessionIdRef.current } },
-      );
-      if (listResult.ok) setConversations(listResult.data.conversations);
+      void refresh();
     }
   }
 
-  async function refreshConversations() {
-    const result = await apiFetch<{ conversations: ConversationSummary[] }>(
-      "/api/v1/assistant/conversations",
-      { headers: { "X-Session-Id": sessionIdRef.current } },
-    );
-    if (result.ok) setConversations(result.data.conversations);
-  }
-
-  async function handleRenameConversation(id: string, title: string) {
-    const result = await apiFetch<ConversationSummary>(`/api/v1/assistant/conversations/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", "X-Session-Id": sessionIdRef.current },
-      body: JSON.stringify({ title }),
-    });
-    if (!result.ok) return;
-    setConversations((current) =>
-      current.map((conversation) => (conversation.id === id ? result.data : conversation)),
-    );
-  }
-
-  async function handleToggleFavorite(id: string, next: boolean) {
-    const result = await apiFetch<ConversationSummary>(`/api/v1/assistant/conversations/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json", "X-Session-Id": sessionIdRef.current },
-      body: JSON.stringify({ is_favorite: next }),
-    });
-    if (!result.ok) return;
-    // Re-busca em vez de reordenar localmente — favoritar muda a posição na
-    // lista (favoritos primeiro) e o servidor já sabe a ordem certa.
-    void refreshConversations();
-  }
-
+  // Commit: só roda quando a janela de desfazer expira (a sidebar cuida do
+  // toast e do efeito otimista).
   async function handleDeleteConversation(id: string) {
-    const result = await apiFetch<void>(`/api/v1/assistant/conversations/${id}`, {
-      method: "DELETE",
-      headers: { "X-Session-Id": sessionIdRef.current },
-    });
-    if (!result.ok) return;
-    setConversations((current) => current.filter((conversation) => conversation.id !== id));
+    await deleteConversation(id);
+  }
+
+  // Efeito otimista: some da lista já. Se a conversa aberta for a excluída,
+  // sai dela na hora — esperar o commit deixaria a tela mostrando algo que
+  // acabou de sumir da barra lateral.
+  function handleRemoveLocally(id: string) {
+    removeLocally(id);
     if (id === activeConversationId) handleNewConversation();
   }
 
@@ -257,29 +247,29 @@ export function AiAssistant() {
 
   return (
     <div
-      ref={rootRef}
-      className={`v0-assistant flex h-dvh bg-v0-background font-v0-sans text-v0-foreground ${geistSans.variable} ${geistMono.variable}`}
+      className={`v0-assistant flex h-dvh overflow-hidden bg-v0-background font-v0-sans text-v0-foreground ${geistSans.variable} ${geistMono.variable}`}
     >
-      <ConversationSidebar
+      <AppSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         onNewConversation={handleNewConversation}
         conversations={conversations}
         activeConversationId={activeConversationId}
         onSelectConversation={(id) => void loadConversation(id)}
-        onRenameConversation={(id, title) => void handleRenameConversation(id, title)}
-        onToggleFavorite={(id, next) => void handleToggleFavorite(id, next)}
+        onRenameConversation={(id, title) => void rename(id, title)}
+        onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
         onDeleteConversation={(id) => void handleDeleteConversation(id)}
-        portalContainerRef={rootRef}
+        onRemoveLocally={handleRemoveLocally}
+        onRestoreLocally={restoreLocally}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-v0-border px-4 py-3 lg:px-6">
+        <header className="flex items-center gap-3 border-b border-v0-border px-4 py-3 md:px-6">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
             aria-label="Abrir menu"
-            className="flex size-8 items-center justify-center rounded-lg text-v0-muted-foreground transition-colors hover:bg-v0-accent hover:text-v0-foreground lg:hidden"
+            className="flex size-8 items-center justify-center rounded-lg text-v0-muted-foreground transition-colors hover:bg-v0-accent hover:text-v0-foreground md:hidden"
           >
             <PanelLeft className="size-4" />
           </button>
@@ -302,15 +292,23 @@ export function AiAssistant() {
           </Breadcrumb>
         </header>
 
-        <div ref={scrollRef} className="v0-scrollbar-slim min-h-0 flex-1 overflow-y-auto">
-          <ConversationView
-            turns={turns}
-            pending={pending}
-            failure={failure}
-            onRetry={handleRetry}
-            onSuggestion={handleSubmit}
-          />
-        </div>
+        <MessageScrollerProvider autoScroll defaultScrollPosition="last-anchor" scrollPreviousItemPeek={64}>
+          <MessageScroller className="min-h-0 flex-1">
+            <MessageScrollerViewport>
+              <MessageScrollerContent aria-label="Conversa com o assistente" className="mx-auto w-full max-w-[900px] space-y-7 px-4 py-8 sm:px-6">
+                <ConversationView
+                  turns={turns}
+                  pending={pending}
+                  failure={failure}
+                  onRetry={handleRetry}
+                  onSuggestion={handleSubmit}
+                  animateLastAssistant={animateNext}
+                />
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton />
+          </MessageScroller>
+        </MessageScrollerProvider>
 
         <div className="bg-gradient-to-t from-v0-background via-v0-background to-transparent px-4 pb-5 pt-2 sm:px-6">
           <div className="mx-auto w-full max-w-[900px]">

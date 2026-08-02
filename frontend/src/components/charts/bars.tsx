@@ -54,7 +54,7 @@ export function Bars({
           );
         })}
       </svg>
-      <figcaption className="mt-2 flex gap-4 text-xs text-muted">
+      <figcaption className="mt-2 flex gap-4 text-xs text-muted-foreground">
         {seriesLabels.map((name, i) => (
           <span key={name} className="inline-flex items-center gap-1.5">
             <span

@@ -28,7 +28,7 @@ export default async function ScrumBoard() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <header>
         <h2 className="text-xl font-semibold text-text">Quadro Scrum</h2>
-        <p className="text-sm text-muted">Itens do sprint ativo</p>
+        <p className="text-sm text-muted-foreground">Itens do sprint ativo</p>
       </header>
       {columns.length > 0 ? (
         <Board initialColumns={columns} />

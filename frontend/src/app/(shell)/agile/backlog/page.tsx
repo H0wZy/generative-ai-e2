@@ -12,7 +12,7 @@ function EpicProgress({ epic }: { epic: Epic }) {
     <li className="flex flex-col gap-1">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm text-text">{epic.name}</span>
-        <span className="text-xs tabular-nums text-muted">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {epic.done_points} / {epic.total_points} pts
         </span>
       </div>
@@ -50,7 +50,7 @@ export default async function Backlog() {
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <header>
         <h2 className="text-xl font-semibold text-text">Backlog</h2>
-        <p className="text-sm text-muted">{items.length} item(ns) na ordem de rank do Jira</p>
+        <p className="text-sm text-muted-foreground">{items.length} item(ns) na ordem de rank do Jira</p>
       </header>
 
       {epics.length > 0 && (

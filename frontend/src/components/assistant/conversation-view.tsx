@@ -8,6 +8,7 @@ import type { AssistantAnswer, AssistantStatus } from "@/lib/types";
 import { EmptyState } from "./empty-state";
 import { LoadingIndicator } from "./loading-indicator";
 import { MessageBubble } from "./message-bubble";
+import { MessageScrollerItem } from "@/components/ui/message-scroller";
 
 export type Turn = { kind: "user"; text: string } | { kind: "assistant"; answer: AssistantAnswer };
 
@@ -35,13 +36,10 @@ interface ConversationViewProps {
   failure: string | null;
   onRetry: () => void;
   onSuggestion: (text: string) => void;
+  animateLastAssistant?: boolean;
 }
 
-export function ConversationView({ turns, pending, failure, onRetry, onSuggestion }: ConversationViewProps) {
-  if (turns.length === 0 && !pending && !failure) {
-    return <EmptyState onSuggestion={onSuggestion} />;
-  }
-
+export function ConversationView({ turns, pending, failure, onRetry, onSuggestion, animateLastAssistant = true }: ConversationViewProps) {
   // Ícone só na última resposta do modelo (igual claude.ai) — mensagens
   // anteriores ficam sem avatar repetido.
   const lastAssistantIndex = turns.reduce(
@@ -49,27 +47,42 @@ export function ConversationView({ turns, pending, failure, onRetry, onSuggestio
     -1,
   );
 
+  // Sem `scrollToEnd` aqui de propósito. Ele existia para compensar o colapso
+  // de altura do typewriter, e disputava com a âncora da pergunta. Agora que a
+  // resposta nasce com a altura final reservada (TypewriterMessage), a âncora
+  // do rolador já entrega o comportamento certo: pergunta fixa no topo,
+  // resposta crescendo abaixo, sem sequestrar a rolagem de quem está lendo.
+
+  if (turns.length === 0 && !pending && !failure) {
+    return <EmptyState onSuggestion={onSuggestion} />;
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[900px] px-4 py-8 sm:px-6">
-      <div className="space-y-7">
-        {turns.map((turn, index) => {
-          if (turn.kind === "user") {
-            return <MessageBubble key={index} role="user" text={turn.text} />;
-          }
-
-          const isLastAssistant = index === lastAssistantIndex;
-          const hoverMessage =
-            SIGNATURE_HOVER_MESSAGES[
-              (turn.answer.answer ?? "").length % SIGNATURE_HOVER_MESSAGES.length
-            ];
-
+    <>
+      {turns.map((turn, index) => {
+        if (turn.kind === "user") {
           return (
-            <div key={index} className="flex flex-col gap-1.5">
+            <MessageScrollerItem key={index} messageId={`turn-${index}`} scrollAnchor>
+              <MessageBubble role="user" text={turn.text} />
+            </MessageScrollerItem>
+          );
+        }
+
+        const isLastAssistant = index === lastAssistantIndex;
+        const hoverMessage =
+          SIGNATURE_HOVER_MESSAGES[
+            (turn.answer.answer ?? "").length % SIGNATURE_HOVER_MESSAGES.length
+          ];
+
+        return (
+          <MessageScrollerItem key={index} messageId={`turn-${index}`}>
+            <div className="flex flex-col gap-1.5">
               <MessageBubble
                 role="assistant"
                 text={turn.answer.answer ?? ""}
                 sources={turn.answer.sources}
                 ticketContext={turn.answer.ticket_context}
+                animate={isLastAssistant && animateLastAssistant}
               />
               {turn.answer.status !== "answered" && (
                 <p className="text-xs text-v0-muted-foreground">{STATUS_NOTICE[turn.answer.status]}</p>
@@ -83,12 +96,28 @@ export function ConversationView({ turns, pending, failure, onRetry, onSuggestio
                 </div>
               )}
             </div>
-          );
-        })}
+          </MessageScrollerItem>
+        );
+      })}
 
+      {/* Sempre montado, mesmo vazio — de propósito.
+          Se este item aparecesse só com `pending`, ele sairia no MESMO commit
+          em que a resposta entra, e a contagem de filhos do scroller ficaria
+          IGUAL (um sai, um entra). Nesse empate a lib entra no ramo
+          "mesma quantidade" e rola para a primeira âncora que ainda não está
+          no conjunto de âncoras já tratadas — que, numa conversa carregada do
+          histórico, é a primeira pergunta. Daí o salto para o topo medido em
+          specs/006 (scrollTop 5012 → 106 no mesmo quadro em que o indicador
+          some). Mantendo o item montado, toda mudança vira acréscimo puro e
+          esse ramo nunca dispara.
+          `contentVisibility: visible` anula o `contain-intrinsic-size` do item
+          para que, vazio, ele ocupe 0px de verdade. */}
+      <MessageScrollerItem messageId="loading" style={{ contentVisibility: "visible" }}>
         {pending && <LoadingIndicator />}
+      </MessageScrollerItem>
 
-        {failure && (
+      {failure && (
+        <MessageScrollerItem messageId="failure">
           <div
             role="alert"
             className="flex items-start gap-3 rounded-xl border border-v0-destructive/40 bg-v0-destructive/10 p-4"
@@ -106,8 +135,8 @@ export function ConversationView({ turns, pending, failure, onRetry, onSuggestio
               </button>
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </MessageScrollerItem>
+      )}
+    </>
   );
 }

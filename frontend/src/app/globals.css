@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* Tokens da paleta v0 (near-black + branco elegante), dark-only — mesmos
    valores oklch usados em `.v0-assistant`, copiados aqui porque uma custom
@@ -52,14 +56,14 @@
 
   /* Tokens semânticos — valores v0, medidos e não estimados (specs/004
      research.md R2). Produto é dark-only agora: não há mais "virar com o
-     tema", só o valor escuro existe. */
-  --color-muted: oklch(0.708 0 0); /* 7.63:1 sobre --color-bg */
+     tema", só o valor escuro existe.
+     `muted`, `primary`, `primary-foreground` e `destructive` saíram daqui na
+     specs/006: passaram a viver na camada shadcn abaixo (`--muted`,
+     `--primary`, …) com os MESMOS valores, para não existirem dois tokens
+     concorrentes para o mesmo papel. */
   --color-link: oklch(0.708 0 0); /* v0 não distingue link de muted-foreground */
   --color-focus: oklch(0.556 0 0); /* = ring do v0 */
-  --color-primary: oklch(0.922 0 0);
   --color-primary-hover: oklch(0.85 0 0);
-  --color-primary-foreground: oklch(0.205 0 0); /* texto sobre bg-primary: 14.22:1 */
-  --color-destructive: oklch(0.704 0.191 22.216); /* texto/ícone destrutivo: 6.84:1 sobre --color-bg — nunca texto claro sólido sobre este tom como fundo (research.md R2) */
   /* Superfície levemente elevada (hover de item, trilho, esqueleto, e papel
      de "card"/"popover" do v0 — o produto não distingue os dois nesta rodada,
      nenhum consumidor precisa da nuance). */
@@ -76,23 +80,91 @@
   --radius-md: 8px;
   --radius-lg: 14px;
 
-  --shadow-sm: 0 0 0 1px #3f424d;
-  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+  /* Estes tokens são "anel + sombra", não só sombra: o `0 0 0 1px` desenha a
+     hairline que separa a superfície do fundo. A rampa antiga (#3f424d,
+     #595d6c, #9397ab) vinha de um tema mais claro — sobre `--color-surface`
+     (~rgb(42,42,42)) esses tons ficam MAIS CLAROS que a própria superfície e
+     ainda puxam para o azul, enquanto o resto da paleta é neutro puro (croma
+     0). Resultado: borda esbranquiçada e suja em todo cartão, e um anel quase
+     branco nos diálogos (que usam `shadow-lg`).
+     Agora o anel usa branco com alfa, no mesmo idioma de `--color-divider`
+     (oklch(1 0 0 / 10%)): acompanha a superfície em vez de brigar com ela, e
+     a elevação passa a vir da sombra, não de uma borda clara. */
+  --shadow-sm: 0 0 0 1px oklch(1 0 0 / 6%);
+  --shadow-md: 0 0 0 1px oklch(1 0 0 / 8%), 0 6px 18px rgb(0 0 0 / 0.55);
+  --shadow-lg: 0 0 0 1px oklch(1 0 0 / 10%), 0 16px 40px rgb(0 0 0 / 0.65);
+  /* ---------------------------------------------------------------------
+     Camada shadcn (base-nova). Valores ESCUROS, aqui mesmo em `:root`.
+
+     Antes existia um bloco `.dark` com estes valores e um `:root` com a
+     paleta clara — só que nada nunca aplicava a classe `.dark` no `<html>`,
+     então o produto escuro resolvia contra a paleta clara: `bg-background`
+     saía branco puro, `border-border` quase branco e `text-foreground` quase
+     preto (invisível sobre fundo escuro). O produto é dark-only; manter dois
+     temas era manter um deles morto. Medições em specs/006 research.md R3.
+
+     Cada valor abaixo é o mesmo dos tokens do projeto logo acima — literal e
+     não `var()` de propósito: `shadcn/tailwind.css` já mapeia
+     `--color-<nome>: var(--<nome>)`, e apontar de volta para os tokens do
+     projeto fecharia ciclo e invalidaria o utilitário (foi exatamente o que
+     deixava `bg-muted`, `bg-card` e `bg-popover` transparentes).
+
+     Atenção ao par `muted`: aqui `--muted` é SUPERFÍCIE (= elevated) e
+     `--muted-foreground` é TEXTO. No vocabulário antigo do projeto
+     `text-muted` era a cor de texto — por isso os usos foram renomeados para
+     `text-muted-foreground`, de valor idêntico (oklch(0.708)).
+     --------------------------------------------------------------------- */
+  --background: oklch(0.145 0 0); /* = --color-bg */
+  --foreground: oklch(0.985 0 0); /* = --color-text */
+  --card: oklch(0.205 0 0); /* = --color-surface */
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0); /* = --color-surface */
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0); /* = --color-primary */
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0); /* = --color-elevated */
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0); /* superfície discreta = --color-elevated */
+  --muted-foreground: oklch(0.708 0 0); /* texto secundário; 7.63:1 sobre o fundo */
+  --accent: oklch(0.269 0 0); /* superfície de hover = --color-elevated */
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216); /* = --color-destructive */
+  --border: oklch(1 0 0 / 10%); /* = --color-divider */
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0); /* = --color-focus */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* `muted`, `primary`, `primary-foreground` e `destructive` apontam para a
+   camada shadcn (`var(--<nome>)`) em vez de para tokens próprios de mesmo
+   nome, para existir um valor só por papel. Atenção: `--color-muted` agora é
+   SUPERFÍCIE (segue `--muted`); a cor de texto secundária virou
+   `--color-muted-foreground`, de valor idêntico ao antigo `--color-muted`. */
 @theme inline {
   --color-bg: var(--color-bg);
   --color-surface: var(--color-surface);
   --color-text: var(--color-text);
   --color-divider: var(--color-divider);
-  --color-muted: var(--color-muted);
   --color-link: var(--color-link);
   --color-focus: var(--color-focus);
-  --color-primary: var(--color-primary);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
   --color-primary-hover: var(--color-primary-hover);
-  --color-primary-foreground: var(--color-primary-foreground);
-  --color-destructive: var(--color-destructive);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
   --color-elevated: var(--color-elevated);
   --color-status-ok: var(--color-status-ok);
   --color-status-warn: var(--color-status-warn);
@@ -137,6 +209,70 @@
   --shadow-lg: var(--shadow-lg);
 
   --font-sans: var(--font-inter);
+
+  --font-heading: var(--font-sans);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar: var(--sidebar);
+
+  --color-chart-5: var(--chart-5);
+
+  --color-chart-4: var(--chart-4);
+
+  --color-chart-3: var(--chart-3);
+
+  --color-chart-2: var(--chart-2);
+
+  --color-chart-1: var(--chart-1);
+
+  --color-ring: var(--ring);
+
+  --color-input: var(--input);
+
+  --color-border: var(--border);
+
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-accent: var(--accent);
+
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-secondary: var(--secondary);
+
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-popover: var(--popover);
+
+  --color-card-foreground: var(--card-foreground);
+
+  --color-card: var(--card);
+
+  --color-foreground: var(--foreground);
+
+  --color-background: var(--background);
+
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  --radius-2xl: calc(var(--radius) * 1.8);
+
+  --radius-3xl: calc(var(--radius) * 2.2);
+
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 body {
@@ -233,23 +369,27 @@ body {
   color: var(--v0-foreground);
 }
 
-/* Scrollbar fina — estilo Claude/Linear, só dentro da tela /assistant. */
-.v0-assistant .v0-scrollbar-slim {
+/* Scrollbar fina — estilo Claude/Linear, agora global (era só dentro de
+   `.v0-assistant`; toda área com overflow do produto — Kanban, listas da
+   sidebar, conteúdo do shell — passa a usar a mesma, sem precisar da classe
+   `v0-scrollbar-slim` em cada uma). CSS puro (scrollbar-width/-color +
+   pseudo-elementos ::-webkit-scrollbar), não é um componente shadcn. */
+* {
   scrollbar-width: thin;
   scrollbar-color: #2f2f2f transparent;
 }
-.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar {
+*::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-track {
+*::-webkit-scrollbar-track {
   background: transparent;
 }
-.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background-color: #2f2f2f;
   border-radius: 9999px;
 }
-.v0-assistant .v0-scrollbar-slim::-webkit-scrollbar-thumb:hover {
+*::-webkit-scrollbar-thumb:hover {
   background-color: #404040;
 }
 
@@ -283,6 +423,25 @@ body {
   animation: suggestion-in 400ms ease-out;
 }
 
+/* Cursor piscante do typewriter — vai depois do último bloco de Markdown já
+   revelado. A classe só é aplicada na cópia VISÍVEL da pilha de grid do
+   TypewriterMessage; a cópia invisível que reserva a altura não a recebe, então
+   o cursor nunca aparece duplicado. */
+@keyframes v0-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.v0-typewriter > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 1px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: v0-cursor-blink 0.8s step-end infinite;
+}
+
 /* FR-008: respeita preferência de movimento reduzido em todo o app. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -292,5 +451,18 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }

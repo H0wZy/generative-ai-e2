@@ -3,6 +3,13 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type TicketPriority = "low" | "medium" | "high" | "urgent";
 
@@ -50,7 +57,7 @@ export function TicketForm({
       className="flex flex-col gap-3"
     >
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Assunto</span>
+        <span className="text-xs text-muted-foreground">Assunto</span>
         <input
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
@@ -61,7 +68,7 @@ export function TicketForm({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-muted">Descrição</span>
+        <span className="text-xs text-muted-foreground">Descrição</span>
         <textarea
           value={description}
           onChange={(event) => setDescription(event.target.value)}
@@ -73,22 +80,27 @@ export function TicketForm({
 
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted">Prioridade</span>
-          <select
+          <span className="text-xs text-muted-foreground">Prioridade</span>
+          <Select
             value={priority}
-            onChange={(event) => setPriority(event.target.value as TicketPriority)}
-            className={FIELD}
+            onValueChange={(value) => setPriority(value as TicketPriority)}
+            items={PRIORITY_OPTIONS.map(([value, label]) => ({ value, label }))}
           >
-            {PRIORITY_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className={`${FIELD} min-w-40 gap-2`} aria-label="Prioridade">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITY_OPTIONS.map(([value, label]) => (
+                <SelectItem key={value} value={value} className="text-sm">
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted">Categoria</span>
+          <span className="text-xs text-muted-foreground">Categoria</span>
           <input
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -98,7 +110,7 @@ export function TicketForm({
         </label>
       </div>
 
-      <Button type="submit" variant="primary" disabled={disabled} className="self-start">
+      <Button type="submit" variant="default" disabled={disabled} className="self-start">
         {submitLabel}
       </Button>
     </form>

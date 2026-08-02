@@ -58,7 +58,7 @@ export default async function Home() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-text">Como está a operação hoje</h2>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-muted-foreground">
             Freshservice e Jira na mesma tela · janela: {ITSM_WINDOW}
           </p>
         </div>
@@ -105,15 +105,15 @@ export default async function Home() {
             <div className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-sm text-text">{sprint.sprint.name}</p>
-                <p className="text-xs text-muted">
+                <p className="text-xs text-muted-foreground">
                   {sprint.sprint.days_left} dia(s) restante(s)
                 </p>
               </div>
               <p className="text-2xl font-semibold tabular-nums text-text">
                 {sprint.sprint.completed_points} / {sprint.sprint.committed_points}
-                <span className="ml-1 text-sm font-normal text-muted">pontos</span>
+                <span className="ml-1 text-sm font-normal text-muted-foreground">pontos</span>
               </p>
-              <p className="text-xs text-muted">
+              <p className="text-xs text-muted-foreground">
                 {sprint.sprint.start_date?.slice(0, 10)} a {sprint.sprint.end_date?.slice(0, 10)}
               </p>
             </div>

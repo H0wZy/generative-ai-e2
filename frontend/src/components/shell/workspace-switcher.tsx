@@ -12,7 +12,7 @@ const OPTIONS: { id: Workspace; label: string; href: string }[] = [
 export function WorkspaceSwitcher({ current }: { current: Workspace }) {
   return (
     <div
-      className="grid grid-cols-2 gap-1 rounded-md bg-elevated p-1"
+      className="grid grid-cols-2 gap-1 rounded-xl bg-elevated/60 p-1"
       role="group"
       aria-label="Workspace"
     >
@@ -23,8 +23,8 @@ export function WorkspaceSwitcher({ current }: { current: Workspace }) {
             key={option.id}
             href={option.href}
             aria-current={active ? "true" : undefined}
-            className={`rounded-sm px-2 py-1.5 text-center text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-              active ? "bg-primary text-primary-foreground" : "text-muted hover:text-text"
+            className={`rounded-lg px-3 py-1.5 text-center text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+              active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-text"
             }`}
           >
             {option.label}

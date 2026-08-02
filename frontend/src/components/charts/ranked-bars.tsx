@@ -14,7 +14,7 @@ export function RankedBars({ rows, emptyLabel }: { rows: RankedRow[]; emptyLabel
     <div className="flex flex-col gap-1.5">
       {rows.map((row) => (
         <div key={row.label} className="flex items-center gap-3 text-sm">
-          <span className="w-44 shrink-0 truncate text-muted" title={row.label}>
+          <span className="w-44 shrink-0 truncate text-muted-foreground" title={row.label}>
             {row.label}
           </span>
           <span className="h-4 flex-1 overflow-hidden rounded-sm bg-elevated">

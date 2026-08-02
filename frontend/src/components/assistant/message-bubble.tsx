@@ -2,7 +2,7 @@
 
 import type { RetrievedSource, TicketRefSource } from "@/lib/types";
 
-import { MarkdownMessage } from "./markdown-message";
+import { TypewriterMessage } from "./typewriter-message";
 import { SourceAccordion } from "./source-accordion";
 
 interface MessageBubbleProps {
@@ -10,9 +10,10 @@ interface MessageBubbleProps {
   text: string;
   sources?: RetrievedSource[];
   ticketContext?: TicketRefSource | null;
+  animate?: boolean;
 }
 
-export function MessageBubble({ role, text, sources = [], ticketContext = null }: MessageBubbleProps) {
+export function MessageBubble({ role, text, sources = [], ticketContext = null, animate = false }: MessageBubbleProps) {
   if (role === "user") {
     return (
       <div className="v0-animate-message-in flex justify-end">
@@ -27,7 +28,7 @@ export function MessageBubble({ role, text, sources = [], ticketContext = null }
   // a marca do assistente vira uma assinatura abaixo (ConversationView).
   return (
     <div className="v0-animate-message-in min-w-0">
-      {text ? <MarkdownMessage content={text} /> : null}
+      {text ? <TypewriterMessage content={text} animate={animate} /> : null}
       {ticketContext && (
         <div className="mt-3 rounded-xl border border-v0-border bg-v0-card/50 px-3.5 py-2.5 text-xs">
           <p className="font-mono text-v0-muted-foreground">{ticketContext.jira_issue_key}</p>

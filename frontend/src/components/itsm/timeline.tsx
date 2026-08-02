@@ -20,11 +20,11 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
           </div>
           <div className="flex flex-col gap-0.5 pb-2">
             <p className="text-sm text-text">{event.summary}</p>
-            <time dateTime={event.at} className="text-xs text-muted">
+            <time dateTime={event.at} className="text-xs text-muted-foreground">
               {new Date(event.at).toLocaleString("pt-BR")}
             </time>
             {Object.keys(event.detail).length > 0 && (
-              <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted">
+              <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                 {Object.entries(event.detail).map(([key, value]) => (
                   <div key={key} className="flex gap-1">
                     <dt>{key}:</dt>

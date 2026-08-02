@@ -59,7 +59,7 @@ export function Donut({
           )}
         </g>
       </svg>
-      <figcaption className="flex flex-col gap-1 text-xs text-muted">
+      <figcaption className="flex flex-col gap-1 text-xs text-muted-foreground">
         {slices.map((slice, i) => (
           <span key={slice.label} className="inline-flex items-center gap-1.5">
             <span

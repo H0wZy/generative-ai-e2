@@ -47,8 +47,8 @@ export function UnavailableState({
       <p className="text-sm font-medium text-text">
         {copy?.title ?? "Seção indisponível"}
       </p>
-      <p className="text-xs text-muted">{copy?.hint}</p>
-      {detail && <p className="text-xs text-muted">{detail}</p>}
+      <p className="text-xs text-muted-foreground">{copy?.hint}</p>
+      {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
     </div>
   );
 }
