@@ -10,7 +10,9 @@ import { apiFetch } from "@/lib/api";
 import { getOrCreateSessionId } from "@/lib/session";
 import type { ConversationSummary } from "@/lib/types";
 
-export function useConversations() {
+export type ConversationListState = "active" | "archived";
+
+export function useConversations(state: ConversationListState = "active") {
   const sessionIdRef = useRef("");
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
 
@@ -18,11 +20,11 @@ export function useConversations() {
     const sessionId = sessionIdRef.current;
     if (!sessionId) return;
     const result = await apiFetch<{ conversations: ConversationSummary[] }>(
-      "/api/v1/assistant/conversations",
+      `/api/v1/assistant/conversations?state=${state}`,
       { headers: { "X-Session-Id": sessionId } },
     );
     if (result.ok) setConversations(result.data.conversations);
-  }, []);
+  }, [state]);
 
   useEffect(() => {
     sessionIdRef.current = getOrCreateSessionId();
@@ -38,6 +40,20 @@ export function useConversations() {
       });
       // Re-busca em vez de reordenar localmente — favoritar muda a posição
       // na lista (favoritos primeiro) e o servidor já sabe a ordem certa.
+      if (result.ok) void refresh();
+    },
+    [refresh],
+  );
+
+  const archive = useCallback(
+    async (id: string, isArchived: boolean) => {
+      const result = await apiFetch<ConversationSummary>(`/api/v1/assistant/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", "X-Session-Id": sessionIdRef.current },
+        body: JSON.stringify({ is_archived: isArchived }),
+      });
+      // Re-busca em vez de reordenar localmente — arquivar/desarquivar tira
+      // a conversa desta lista (active <-> archived), não só reordena.
       if (result.ok) void refresh();
     },
     [refresh],
@@ -93,6 +109,7 @@ export function useConversations() {
     conversations,
     refresh,
     toggleFavorite,
+    archive,
     rename,
     deleteConversation,
     removeLocally,

@@ -286,6 +286,8 @@ export interface ConversationSummary {
   title: string;
   updated_at: string;
   is_favorite: boolean;
+  /** `null` = ativa. Ortogonal a `is_favorite` (specs/007). */
+  archived_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
