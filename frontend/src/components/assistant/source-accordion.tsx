@@ -5,6 +5,7 @@ import { ChevronRight, FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { RetrievedSource } from "@/lib/types";
+import { Button } from "./v0/button";
 
 // `content` é conteúdo indexado, não confiável: sempre texto simples dentro
 // de <pre>, nunca HTML nem Markdown (FR-045) — mesma regra da mensagem antiga.
@@ -15,11 +16,12 @@ export function SourceAccordion({ sources }: { sources: RetrievedSource[] }) {
 
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-v0-border bg-v0-card/50">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3.5 py-2.5 text-left transition-colors hover:bg-v0-accent/50"
+        className="h-auto w-full justify-start gap-2 rounded-none px-3.5 py-2.5 text-left hover:bg-v0-accent/50"
       >
         <ChevronRight
           className={cn(
@@ -30,7 +32,7 @@ export function SourceAccordion({ sources }: { sources: RetrievedSource[] }) {
         <span className="text-xs font-medium uppercase tracking-wide text-v0-muted-foreground">
           Fontes ({sources.length})
         </span>
-      </button>
+      </Button>
 
       {open && (
         <ul className="space-y-1.5 border-t border-v0-border px-1.5 py-1.5">

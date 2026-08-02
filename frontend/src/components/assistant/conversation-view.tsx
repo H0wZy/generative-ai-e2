@@ -5,6 +5,7 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 
 import type { AssistantAnswer, AssistantStatus } from "@/lib/types";
 
+import { Button } from "./v0/button";
 import { EmptyState } from "./empty-state";
 import { LoadingIndicator } from "./loading-indicator";
 import { MessageBubble } from "./message-bubble";
@@ -125,14 +126,16 @@ export function ConversationView({ turns, pending, failure, onRetry, onSuggestio
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-v0-destructive" />
             <div className="flex-1 space-y-2">
               <p className="text-sm text-v0-foreground">{failure}</p>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={onRetry}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-v0-border bg-v0-card px-3 py-1.5 text-xs font-medium text-v0-foreground transition-colors hover:bg-v0-accent"
+                className="h-auto rounded-lg bg-v0-card px-3 py-1.5 text-xs"
               >
                 <RefreshCw className="size-3.5" />
                 Tentar novamente
-              </button>
+              </Button>
             </div>
           </div>
         </MessageScrollerItem>

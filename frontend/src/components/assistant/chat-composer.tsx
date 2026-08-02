@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Mic, Paperclip } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "./v0/button";
+import { Textarea } from "./v0/textarea";
 
 const SUGGESTIONS = [
   "Como funciona a idempotência do worker?",
@@ -109,7 +111,7 @@ export function ChatComposer({
         )}
       >
         <div className="relative px-2 pt-1.5">
-          <textarea
+          <Textarea
             ref={textareaRef}
             value={value}
             onFocus={() => setFocused(true)}
@@ -123,7 +125,6 @@ export function ChatComposer({
             aria-label="Digite sua pergunta para o assistente"
             aria-invalid={showEmptyError}
             aria-describedby="assistant-suggestion-hint"
-            className="v0-scrollbar-slim min-h-[40px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-v0-foreground outline-none placeholder:text-transparent"
           />
           {/* Placeholder dinâmico animado — só aparece quando o campo está vazio. */}
           {isEmpty && (
@@ -140,35 +141,40 @@ export function ChatComposer({
 
         <div className="flex items-center justify-between gap-2 px-1 pt-1">
           <div className="flex items-center gap-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               disabled
               title="Em breve"
               aria-label="Anexar arquivo (em breve)"
-              className="flex size-9 items-center justify-center rounded-xl text-v0-muted-foreground opacity-50"
+              className="rounded-xl text-v0-muted-foreground opacity-50"
             >
               <Paperclip className="size-[18px]" />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               disabled
               title="Em breve"
               aria-label="Entrada por voz (em breve)"
-              className="flex size-9 items-center justify-center rounded-xl text-v0-muted-foreground opacity-50"
+              className="rounded-xl text-v0-muted-foreground opacity-50"
             >
               <Mic className="size-[18px]" />
-            </button>
+            </Button>
           </div>
 
-          <button
+          <Button
             type="button"
             onClick={handleSubmit}
             disabled={pending}
             aria-label="Perguntar"
-            className="flex size-9 items-center justify-center rounded-xl bg-v0-primary text-v0-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+            size="icon"
+            className="rounded-xl disabled:opacity-40"
           >
             <ArrowUp className="size-[18px]" />
-          </button>
+          </Button>
         </div>
       </div>
 

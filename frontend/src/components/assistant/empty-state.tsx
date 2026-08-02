@@ -2,6 +2,8 @@
 
 import { ArrowUpRight, Sparkles } from "lucide-react";
 
+import { Button } from "./v0/button";
+
 const SUGGESTIONS = [
   "Onde está o quadro Kanban?",
   "Como funciona o roteamento para o Jira?",
@@ -26,15 +28,16 @@ export function EmptyState({ onSuggestion }: { onSuggestion: (text: string) => v
 
       <div className="mt-10 grid w-full max-w-2xl gap-3 sm:grid-cols-2">
         {SUGGESTIONS.map((suggestion) => (
-          <button
+          <Button
             key={suggestion}
             type="button"
+            variant="outline"
             onClick={() => onSuggestion(suggestion)}
-            className="group flex items-center justify-between gap-3 rounded-xl border border-v0-border bg-v0-card px-4 py-3.5 text-left text-sm text-v0-card-foreground transition-all hover:border-v0-primary/40 hover:bg-v0-accent"
+            className="group h-auto w-full justify-between gap-3 rounded-xl bg-v0-card px-4 py-3.5 text-left text-sm text-v0-card-foreground hover:border-v0-primary/40 hover:bg-v0-accent hover:text-v0-card-foreground"
           >
             <span className="text-pretty">{suggestion}</span>
             <ArrowUpRight className="size-4 shrink-0 text-v0-muted-foreground/50 transition-colors group-hover:text-v0-primary" />
-          </button>
+          </Button>
         ))}
       </div>
     </div>
