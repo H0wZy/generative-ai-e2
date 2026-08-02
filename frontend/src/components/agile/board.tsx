@@ -52,14 +52,20 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
   const [columns, setColumns] = useState(initialColumns);
   const [dragging, setDragging] = useState<DragState>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Serializa moves: com duas transições em voo, o revert da primeira (que
+  // usa o `columns` capturado antes de começar) sobrescreveria o efeito
+  // otimista da segunda. Trava input (drag e select) até a resposta voltar.
+  const [moving, setMoving] = useState(false);
 
   async function move(issueKey: string, from: string, to: string) {
-    if (from === to) return;
+    if (from === to || moving) return;
     const snapshot = columns;
     const card = columns
       .find((column) => column.name === from)
       ?.cards.find((item) => item.key === issueKey);
     if (!card) return;
+
+    setMoving(true);
 
     // Otimista: move já, reverte se o Jira não confirmar (FR-048).
     setColumns((current) =>
@@ -79,6 +85,7 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
     if (!result.ok) {
       setColumns(snapshot);
       setNotice(result.message);
+      setMoving(false);
       return;
     }
     setColumns((current) =>
@@ -94,6 +101,7 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
           : column,
       ),
     );
+    setMoving(false);
   }
 
   return (
@@ -135,6 +143,7 @@ export function Board({ initialColumns }: { initialColumns: BoardColumnView[] })
                 card={card}
                 columnName={column.name}
                 columnNames={columns.map((c) => c.name)}
+                disabled={moving}
                 onDragStart={() => setDragging({ key: card.key, from: column.name })}
                 onMove={(to) => void move(card.key, column.name, to)}
               />
@@ -154,18 +163,20 @@ function BoardCard({
   card,
   columnName,
   columnNames,
+  disabled,
   onDragStart,
   onMove,
 }: {
   card: WorkItem;
   columnName: string;
   columnNames: string[];
+  disabled: boolean;
   onDragStart: () => void;
   onMove: (to: string) => void;
 }) {
   return (
     <article
-      draggable
+      draggable={!disabled}
       onDragStart={onDragStart}
       className={`flex flex-col gap-2 rounded-md border-l-[3px] bg-elevated p-2 ${workItemStatusRail(card)}`}
     >
@@ -204,6 +215,7 @@ function BoardCard({
           value={columnName}
           onValueChange={(value) => onMove(String(value))}
           items={columnNames.map((name) => ({ label: name, value: name }))}
+          disabled={disabled}
         >
           <SelectTrigger aria-label={`Mover ${card.key} para outra coluna`}>
             <SelectValue />
