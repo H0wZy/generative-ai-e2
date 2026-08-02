@@ -15,6 +15,7 @@ Nenhuma linha de código muda entre os dois caminhos abaixo — a diferença é 
 - Python 3.11+
 - PostgreSQL 16 (via Docker ou instalação local)
 - `make` e `curl`
+- Ter o .env propriamente configurado, ele contém API Keys importantes para o funcionamento do projeto, incluindo o [backend](/backend/) e [rag](/rag/). Minha sugestão: Se você for um avaliador TCS, baixe o projeto zipado, ele já está pronto para rodar perfeitamente.
 
 ### Caminho 1: Com Docker (recomendado, padrão)
 
