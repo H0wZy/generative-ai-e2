@@ -15,6 +15,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Archive,
   Home,
   MessageSquarePlus,
   PanelLeftClose,
@@ -74,6 +75,8 @@ interface AppSidebarProps {
   onRemoveLocally?: (id: string) => void;
   /** Reverte o efeito otimista quando a pessoa desfaz. */
   onRestoreLocally?: (conversation: ConversationSummary) => void;
+  /** Arquivar/desarquivar (specs/007). `isArchived=true` arquiva. */
+  onArchiveConversation?: (id: string, isArchived: boolean) => void;
 }
 
 export function AppSidebar({
@@ -88,6 +91,7 @@ export function AppSidebar({
   onDeleteConversation: onDeleteProp,
   onRemoveLocally: onRemoveLocallyProp,
   onRestoreLocally: onRestoreLocallyProp,
+  onArchiveConversation: onArchiveProp,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -101,6 +105,7 @@ export function AppSidebar({
   const deleteConversation = onDeleteProp ?? ownConversationsApi.deleteConversation;
   const removeLocally = onRemoveLocallyProp ?? ownConversationsApi.removeLocally;
   const restoreLocally = onRestoreLocallyProp ?? ownConversationsApi.restoreLocally;
+  const archive = onArchiveProp ?? ((id: string, isArchived: boolean) => void ownConversationsApi.archive(id, isArchived));
 
   // Colapso é conceito só de desktop — no mobile a sidebar já é off-canvas
   // (translate-x). Estado local, não precisa persistir.
@@ -113,14 +118,18 @@ export function AppSidebar({
 
   function handleSelect(id: string) {
     if (onSelectConversation) onSelectConversation(id);
-    else router.push(`/assistant?c=${id}`);
+    else router.push(`/ai/chat/${id}`);
     onClose();
   }
 
   function handleNew() {
     if (onNewConversation) onNewConversation();
-    else router.push("/assistant");
+    else router.push("/ai/chat");
     onClose();
+  }
+
+  function handleArchive(conversation: ConversationSummary) {
+    archive(conversation.id, true);
   }
 
   function startRename(conversation: ConversationSummary) {
@@ -167,6 +176,11 @@ export function AppSidebar({
           type="button"
           aria-label="Fechar menu"
           onClick={onClose}
+          // Cobre a tela inteira: alcançável por Tab prenderia o foco aqui
+          // sem indicação visual nenhuma (T044) — não é um controle
+          // navegável por teclado, é o clique-fora, o Escape/foco na
+          // sidebar já fecham o menu.
+          tabIndex={-1}
           className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden"
         />
       )}
@@ -249,6 +263,21 @@ export function AppSidebar({
           </Button>
         </div>
 
+        <div className={cn("px-4 pt-1.5", collapsed && "md:px-3")}>
+          <Link
+            href="/ai/arquivadas"
+            onClick={onClose}
+            title={collapsed ? "Arquivadas" : undefined}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-elevated hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
+              collapsed && "md:justify-center",
+            )}
+          >
+            <Archive className="size-3.5 shrink-0" />
+            <span className={cn(collapsed && "md:hidden")}>Arquivadas</span>
+          </Link>
+        </div>
+
         <nav className={cn("px-3 pt-5", collapsed && "md:px-2")}>
           <p
             className={cn(
@@ -325,6 +354,7 @@ export function AppSidebar({
                       onStartRename={() => startRename(conversation)}
                       onToggleFavorite={() => void toggleFavorite(conversation.id, false)}
                       onDelete={() => handleDelete(conversation)}
+                      onArchive={() => handleArchive(conversation)}
                     />
                   ))}
                 </ul>
@@ -354,6 +384,7 @@ export function AppSidebar({
                   onStartRename={() => startRename(conversation)}
                   onToggleFavorite={() => void toggleFavorite(conversation.id, true)}
                   onDelete={() => handleDelete(conversation)}
+                  onArchive={() => handleArchive(conversation)}
                 />
               ))}
             </ul>
@@ -403,6 +434,7 @@ interface ConversationRowProps {
   onStartRename: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
+  onArchive: () => void;
 }
 
 function ConversationRow({
@@ -417,6 +449,7 @@ function ConversationRow({
   onStartRename,
   onToggleFavorite,
   onDelete,
+  onArchive,
 }: ConversationRowProps) {
   if (isEditing) {
     return (
@@ -451,7 +484,7 @@ function ConversationRow({
             onClick={onSelect}
             aria-current={active ? "true" : undefined}
             className={cn(
-              "flex w-full items-center gap-1.5 truncate rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
+              "flex w-full items-center gap-1.5 truncate rounded-lg px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus",
               active ? "bg-elevated text-text" : "text-muted-foreground hover:bg-elevated/60 hover:text-text",
             )}
           >
@@ -469,6 +502,10 @@ function ConversationRow({
           <ContextMenuItem onClick={onToggleFavorite}>
             <Star className="size-3.5" />
             {conversation.is_favorite ? "Remover dos favoritos" : "Favoritar"}
+          </ContextMenuItem>
+          <ContextMenuItem onClick={onArchive}>
+            <Archive className="size-3.5" />
+            Arquivar
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem variant="destructive" onClick={onDelete}>
