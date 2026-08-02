@@ -1,7 +1,7 @@
 "use client";
 
 // Backlog/Scrum/Kanban deixaram de ser itens da barra lateral (specs/005 —
-// competiam com "Dashboard" pelo mesmo prefixo de rota e destacavam os dois
+// competiam com "Painel" pelo mesmo prefixo de rota e destacavam os dois
 // ao mesmo tempo). Viram abas aqui dentro, junto da tela de Dashboard.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
 import { mostSpecificMatch } from "@/lib/nav";
 
 const TABS = [
-  { label: "Dashboard", href: "/agile" },
+  { label: "Painel", href: "/agile" },
   { label: "Backlog", href: "/agile/backlog" },
   { label: "Quadro Scrum", href: "/agile/scrum" },
   { label: "Quadro Kanban", href: "/agile/kanban" },

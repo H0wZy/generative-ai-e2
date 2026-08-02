@@ -11,7 +11,7 @@ export default function NotFound() {
         href="/"
         className="text-sm text-link underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
-        Voltar para a Home
+        Voltar para o início
       </Link>
     </div>
   );

@@ -3,13 +3,10 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import {
-  Blocks,
-  BookOpen,
   Boxes,
+  BookOpen,
   Home,
-  KanbanSquare,
   LayoutDashboard,
-  ListTodo,
   Settings,
   Sparkles,
   Workflow,
@@ -21,44 +18,37 @@ export type NavItem = {
   label: string;
   href: string;
   implemented: boolean;
-};
-
-// Ícone por rótulo de item de menu — mesmo mapeamento usado pela navegação do
-// Assistente (conversation-sidebar.tsx), centralizado aqui para os dois
-// consumidores (Sidebar do shell e ConversationSidebar) não divergirem.
-export const NAV_ICONS: Record<string, typeof Home> = {
-  Home,
-  Dashboard: LayoutDashboard,
-  Assets: Boxes,
-  "Base de Conhecimento": BookOpen,
-  Automações: Workflow,
-  "Assistente de IA": Sparkles,
-  Administração: Settings,
-  Backlog: ListTodo,
-  "Quadro Scrum": KanbanSquare,
-  "Quadro Kanban": Blocks,
+  // Ícone é dado por item, não resolvido por lookup no texto do label — um
+  // label traduzido/renomeado sem sincronizar uma chave à parte já causou
+  // ícone errado silencioso no passado (fallback mudo pra `Home`).
+  icon: typeof Home;
 };
 
 export const NAV: Record<Workspace, NavItem[]> = {
   itsm: [
-    { label: "Home", href: "/", implemented: true },
-    { label: "Dashboard", href: "/itsm", implemented: true },
-    { label: "Assets", href: "/em-construcao/assets", implemented: false },
-    { label: "Base de Conhecimento", href: "/em-construcao/base-de-conhecimento", implemented: false },
-    { label: "Automações", href: "/em-construcao/automacoes", implemented: false },
-    { label: "Assistente de IA", href: "/ai/chat", implemented: true },
-    { label: "Administração", href: "/em-construcao/administracao", implemented: false },
+    { label: "Início", href: "/", implemented: true, icon: Home },
+    { label: "Painel", href: "/itsm", implemented: true, icon: LayoutDashboard },
+    { label: "Ativos", href: "/em-construcao/assets", implemented: false, icon: Boxes },
+    {
+      label: "Base de Conhecimento",
+      href: "/em-construcao/base-de-conhecimento",
+      implemented: false,
+      icon: BookOpen,
+    },
+    { label: "Automações", href: "/em-construcao/automacoes", implemented: false, icon: Workflow },
+    { label: "Assistente de IA", href: "/ai/chat", implemented: true, icon: Sparkles },
+    { label: "Administração", href: "/em-construcao/administracao", implemented: false, icon: Settings },
   ],
   agile: [
-    { label: "Home", href: "/", implemented: true },
+    { label: "Início", href: "/", implemented: true, icon: Home },
     // Backlog/Scrum/Kanban não são itens de menu próprios — são abas dentro
-    // da tela de Dashboard (AgileTabs, app/(shell)/agile/layout.tsx). Eram
-    // 3 rotas irmãs sob /agile/*, o que fazia o item "Dashboard" (href
+    // da tela de Painel (AgileTabs, app/(shell)/agile/layout.tsx). Eram
+    // 3 rotas irmãs sob /agile/*, o que fazia o item "Painel" (href
     // "/agile") ficar destacado ao mesmo tempo que qualquer uma delas (o
     // prefixo "/agile/" bate nos dois).
-    { label: "Dashboard", href: "/agile", implemented: true },
-    { label: "Assistente de IA", href: "/ai/chat", implemented: true },
-    { label: "Administração", href: "/em-construcao/administracao", implemented: false },
+    { label: "Painel", href: "/agile", implemented: true, icon: LayoutDashboard },
+    { label: "Assistente de IA", href: "/ai/chat", implemented: true, icon: Sparkles },
+    { label: "Administração", href: "/em-construcao/administracao", implemented: false, icon: Settings },
   ],
 };
 
@@ -153,5 +143,5 @@ export function sectionLabel(pathname: string): string {
   // (Home, Assistente de IA, Administração) — "itsm" é só um array de busca,
   // não uma afirmação sobre o workspace ativo.
   const match = mostSpecificMatch(NAV[workspaceFor(pathname) ?? "itsm"], pathname);
-  return match?.label ?? "Home";
+  return match?.label ?? "Início";
 }

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 // Quatro páginas idênticas seriam quatro arquivos para o mesmo conteúdo.
 const SECOES: Record<string, { titulo: string; descricao: string }> = {
   assets: {
-    titulo: "Assets",
+    titulo: "Ativos",
     descricao:
       "Inventário de ativos vindo do Freshservice. A automação atual cobre tickets, não CMDB.",
   },

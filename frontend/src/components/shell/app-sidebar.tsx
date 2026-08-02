@@ -16,7 +16,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Archive,
-  Home,
   MessageSquarePlus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -28,7 +27,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { NAV, NAV_ICONS, mostSpecificMatch, sectionLabel, useActiveWorkspace } from "@/lib/nav";
+import { NAV, mostSpecificMatch, sectionLabel, useActiveWorkspace } from "@/lib/nav";
 import { useConversations } from "@/lib/use-conversations";
 import { runUndoable } from "@/lib/undoable";
 import type { ConversationSummary } from "@/lib/types";
@@ -214,7 +213,7 @@ export function AppSidebar({
             </span>
             <span className={cn("text-left leading-tight", collapsed && "md:hidden")}>
               <span className="block text-sm font-semibold text-text">
-                ITSM<span className="text-link">+</span>Agile
+                ITSM<span className="text-link">+</span>Ágil
               </span>
               <span className="block text-[11px] text-muted-foreground">{subtitle}</span>
             </span>
@@ -289,8 +288,8 @@ export function AppSidebar({
           </p>
           <ul className="space-y-0.5">
             {NAV[workspace].map((item) => {
-              const Icon = NAV_ICONS[item.label] ?? Home;
-              // Item mais específico vence — evita que "Dashboard" (/agile)
+              const Icon = item.icon;
+              // Item mais específico vence — evita que "Painel" (/agile)
               // acenda junto com uma rota irmã sob o mesmo prefixo.
               const active = item.href === currentNavItem?.href;
               return (

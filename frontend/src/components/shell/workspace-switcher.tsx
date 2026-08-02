@@ -4,7 +4,7 @@ import type { Workspace } from "@/lib/types";
 
 const OPTIONS: { id: Workspace; label: string; href: string }[] = [
   { id: "itsm", label: "ITSM", href: "/itsm" },
-  { id: "agile", label: "Agile", href: "/agile" },
+  { id: "agile", label: "Ágil", href: "/agile" },
 ];
 
 // Sem estado e sem cliente: dois <Link> do App Router. É o que faz a troca de
